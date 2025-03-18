@@ -1,0 +1,7 @@
+{
+    "default_pool": {
+        "type": "string",
+        "default": "standard",
+        "description": "默认抽卡卡池"
+    }
+}

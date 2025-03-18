@@ -1,0 +1,70 @@
+{
+    "standard": {
+        "display_name": "标准池",
+        "description": "常驻角色池",
+        "rates": {
+            "character": 0.01,
+            "decoration": 0.09,
+            "gift": 0.60,
+            "jades": 0.30
+        },
+        "character_rates": {
+            "UR": 0.01,
+            "SSR": 0.04,
+            "SR": 0.15,
+            "R": 0.80
+        },
+        "cards": {
+            "UR": [
+                { "name": "八木唯", "type": "character" }
+            ],
+            "SSR": [
+                { "name": "宫永照", "type": "character" },
+                { "name": "原村和", "type": "character" },
+                { "name": "天江衣", "type": "character" }
+            ],
+            "SR": [
+                { "name": "竹井久", "type": "character" }
+            ],
+            "R": [
+                { "name": "园城寺怜", "type": "character" },
+                { "name": "新子憧", "type": "character" }
+            ]
+        }
+    },
+    "limited_summer": {
+        "name": "夏日限定池",
+        "description": "限时UP",
+        "rates": {
+            "character": 0.02,
+            "decoration": 0.08,
+            "gift": 0.60,
+            "jades": 0.30
+        },
+        "character_rates": {
+            "UR": 0.01,
+            "SSR": 0.04,
+            "SR": 0.15,
+            "R": 0.80
+        },
+        "up_rates": {
+            "UR": 0.005,
+            "SSR": 0.01
+        },
+        "up_cards": [],
+        "cards": {
+            "UR": [],
+            "SSR": [
+                { "name": "宫永照", "type": "character" },
+                { "name": "原村和", "type": "character" }
+            ],
+            "SR": [
+                { "name": "竹井久", "type": "character" }
+            ],
+            "R": [
+                { "name": "园城寺怜", "type": "character" },
+                { "name": "新子憧", "type": "character" }
+            ]
+        }
+    }
+}
