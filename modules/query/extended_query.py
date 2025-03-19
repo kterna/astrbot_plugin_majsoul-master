@@ -6,6 +6,7 @@ import json
 import urllib.parse
 from datetime import datetime
 from functools import wraps
+from .player_tag import PlayerTagAnalyzer
 
 # 类型别名
 GameMode = Literal["3", "4"]
@@ -160,8 +161,12 @@ class MajsoulAPI:
         
         url = f"{self._get_api_url(mode)}/player_stats/{player['id']}/{START_TIME}/{current_timestamp}?mode={game_mode}"
         stats = await self.request(url)
-        
-        return self.format_stats(stats, room_level, mode, nickname)
+
+        tag_url = f"{self._get_api_url(mode)}/player_extended_stats/{player['id']}/{START_TIME}/{current_timestamp}?mode={game_mode}"
+        tag_data = await self.request(tag_url)
+        tag = PlayerTagAnalyzer().analyze_stats(tag_data)
+
+        return self.format_stats(stats, room_level, mode, nickname, tag)
 
     @handle_api_error
     async def query_records(self, nickname: str, mode: GameMode = DEFAULT_MODE, limit: int = DEFAULT_LIMIT, is_south: bool = DEFAULT_DIRECTION) -> str:
@@ -199,7 +204,7 @@ class MajsoulAPI:
         
         return "\n".join(stats_text)
 
-    def format_stats(self, stats: Dict, room_level: str, mode: str, nickname: str) -> str:
+    def format_stats(self, stats: Dict, room_level: str, mode: str, nickname: str, tag: List[str]) -> str:
         """格式化统计数据"""
         try:
             if not stats:
@@ -216,6 +221,7 @@ class MajsoulAPI:
                 f"总场次: {stats.get('count', 0)}",
                 f"平均顺位: {stats.get('avg_rank', 0):.2f}",
                 f"飞人率: {stats.get('negative_rate', 0) * 100:.1f}%",
+                f"{tag}",
                 "顺位分布:"
             ]
             
