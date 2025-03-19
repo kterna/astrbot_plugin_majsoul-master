@@ -17,12 +17,30 @@ class GachaPresenter:
     def __init__(self, resource_manager: ResourceManager):
         self.resource_manager = resource_manager
         self.resources_dir = resource_manager.resources_dir
-        # 使用ResourceManager的get_temp_dir方法获取临时目录
         self.temp_dir = resource_manager.get_temp_dir()
         logger.info(f"使用临时目录: {self.temp_dir}")
         
+        # 图片缓存
+        self._image_cache = {}
+        self._cache_size = 100  # 最大缓存数量
+        
         # 加载字体
-        # 直接使用系统字体，不尝试从resources/fonts目录加载
+        self._load_fonts()
+        
+        # 类型颜色
+        self.type_colors = {
+            "character": (255, 105, 180),  # 粉色
+            "decoration": (50, 205, 50),   # 绿色
+            "gift": (255, 165, 0),         # 橙色
+            "jades": (64, 224, 208)        # 青色
+        }
+        
+        # 预加载常用背景
+        self._background_cache = {}
+        self._preload_backgrounds()
+
+    def _load_fonts(self):
+        """加载字体"""
         self.font_path = None
         system_fonts = [
             "C:/Windows/Fonts/msyh.ttc",  # Windows
@@ -38,24 +56,63 @@ class GachaPresenter:
                 break
         
         if not self.font_path:
-            # 如果找不到任何字体，使用PIL默认字体
             logger.warning("未找到合适的字体，将使用默认字体")
             self.font_path = ImageFont.load_default()
+    
+    def _preload_backgrounds(self):
+        """预加载背景图片"""
+        try:
+            # 获取所有背景图片路径
+            bg_paths = self.resource_manager.get_all_backgrounds()
+            # 只预加载前5个背景
+            for path in bg_paths[:5]:
+                if os.path.exists(path):
+                    try:
+                        img = Image.open(path)
+                        self._background_cache[path] = img
+                        logger.info(f"预加载背景图片: {path}")
+                    except Exception as e:
+                        logger.error(f"预加载背景图片失败: {e}")
+        except Exception as e:
+            logger.error(f"预加载背景图片过程出错: {e}")
+    
+    def _get_cached_image(self, path: str) -> Optional[Image.Image]:
+        """从缓存获取图片"""
+        if path in self._image_cache:
+            return self._image_cache[path]
         
-        # 背景和边框颜色
-        self.rarity_colors = {
-            "UR": (255, 215, 0),    # 金色
-            "SSR": (148, 0, 211),   # 紫色
-            "SR": (30, 144, 255),   # 蓝色
-            "R": (192, 192, 192)    # 银色
-        }
+        try:
+            if os.path.exists(path):
+                img = Image.open(path)
+                # 如果缓存已满，移除最早的项
+                if len(self._image_cache) >= self._cache_size:
+                    self._image_cache.pop(next(iter(self._image_cache)))
+                self._image_cache[path] = img
+                return img
+        except Exception as e:
+            logger.error(f"加载图片失败: {e}")
+        return None
+    
+    def _get_background(self) -> Image.Image:
+        """获取背景图片"""
+        try:
+            # 优先从缓存获取
+            if self._background_cache:
+                return random.choice(list(self._background_cache.values())).copy()
+            
+            # 如果缓存为空，尝试获取新背景
+            bg_path = self.resource_manager.get_random_background()
+            if bg_path and os.path.exists(bg_path):
+                try:
+                    background = Image.open(bg_path)
+                    return background
+                except Exception as e:
+                    logger.error(f"加载背景图片失败: {e}")
+        except Exception as e:
+            logger.error(f"获取背景图片失败: {e}")
         
-        self.type_colors = {
-            "character": (255, 105, 180),  # 粉色
-            "decoration": (50, 205, 50),   # 绿色
-            "gift": (255, 165, 0),         # 橙色
-            "jades": (64, 224, 208)        # 青色
-        }
+        # 如果获取背景失败，返回纯色背景
+        return Image.new('RGB', (800, 600), (30, 30, 40))
 
     def _get_text_width(self, draw, text, font):
         """获取文本宽度，兼容不同版本的PIL"""
@@ -91,93 +148,65 @@ class GachaPresenter:
             
             logger.info(f"创建背景图，尺寸: {width}x{height}")
             
-            # 尝试获取随机背景图片
-            bg_path = self.resource_manager.get_random_background()
-            if bg_path and os.path.exists(bg_path):
-                logger.info(f"使用背景图片: {bg_path}")
-                try:
-                    background = Image.open(bg_path)
-                    # 调整背景图片大小并应用轻微模糊效果，使卡片更加突出
-                    background = background.resize((width, height))
-                    background = background.filter(ImageFilter.GaussianBlur(radius=3))
-                except Exception as e:
-                    logger.error(f"加载背景图片失败: {e}，使用纯色背景")
-                    background = Image.new('RGB', (width, height), (30, 30, 40))
-            else:
-                logger.info("未找到背景图片，使用纯色背景")
-                background = Image.new('RGB', (width, height), (30, 30, 40))
+            # 获取背景图片
+            background = self._get_background()
+            background = background.resize((width, height))
+            background = background.filter(ImageFilter.GaussianBlur(radius=3))
             
             draw = ImageDraw.Draw(background)
             
             # 加载字体
             try:
                 if isinstance(self.font_path, str):
-                    logger.info(f"加载字体文件: {self.font_path}")
                     title_font = ImageFont.truetype(self.font_path, 32)
                     name_font = ImageFont.truetype(self.font_path, 16)
                 else:
-                    # 如果font_path是默认字体对象
-                    logger.info("使用默认字体对象")
                     title_font = self.font_path
                     name_font = self.font_path
             except Exception as e:
                 logger.error(f"加载字体失败: {e}，使用默认字体")
                 title_font = ImageFont.load_default()
                 name_font = ImageFont.load_default()
-              
+            
             # 绘制每张卡片
             logger.info(f"开始绘制{len(result.cards)}张卡片")
             
             for i, card in enumerate(result.cards):
                 try:
-                    logger.info(f"绘制第{i+1}张卡片: {card.name}, 类型: {card.type}, 稀有度: {card.rarity}")
-                    
                     row = i // cols
                     col = i % cols
                     
                     x = padding + col * (card_width + padding)
                     y = padding + row * (card_height + padding) + 60  # 标题下方开始
                     
-                    # 创建卡片背景 - 使用半透明背景
-                    card_bg_color = (*self.type_colors.get(card.type, (100, 100, 100)), 150)  # 降低透明度，使背景更透明
+                    # 创建卡片背景
+                    card_bg_color = (*self.type_colors.get(card.type, (100, 100, 100)), 150)
                     card_img = Image.new('RGBA', (card_width, card_height), (0, 0, 0, 0))
                     card_draw = ImageDraw.Draw(card_img)
                     
                     # 绘制半透明卡片背景
                     card_draw.rectangle((0, 0, card_width, card_height), fill=card_bg_color)
                     
-                    # 尝试加载卡片图片
+                    # 尝试从缓存加载卡片图片
                     card_image_path = card.get_image_path(self.resources_dir)
-                    if card_image_path and os.path.exists(card_image_path):
-                        try:
-                            logger.info(f"加载卡片图片: {card_image_path}")
-                            card_image = Image.open(card_image_path)
-                            # 调整图片大小以适应卡片，留出更少的边距
+                    if card_image_path:
+                        card_image = self._get_cached_image(card_image_path)
+                        if card_image:
+                            # 调整图片大小
                             card_image = card_image.resize((card_width - 6, card_height - 30))
                             # 将图片粘贴到卡片中央
-                            paste_x = 3  # 左右各留3像素边距
-                            paste_y = 3  # 顶部留3像素
-                            card_img.paste(card_image, (paste_x, paste_y))
-                        except Exception as e:
-                            logger.error(f"加载卡片图片失败: {e}")
-                    else:
-                        logger.warning(f"未找到卡片图片: {card.name}")
-                        # 绘制一个占位图形 - 简化为文字提示
-                        if card.type == "character":
-                            text = "角色"
-                        elif card.type == "decoration":
-                            text = "装饰"
-                        elif card.type == "gift":
-                            text = "礼物"
-                        elif card.type == "jades":
-                            text = "玉石"
-                        else:
-                            text = card.type
+                            card_img.paste(card_image, (3, 3))
+                    
+                    # 如果没有找到图片，绘制占位符
+                    if not card_image_path or not card_image:
+                        text = {
+                            "character": "角色",
+                            "decoration": "装饰",
+                            "gift": "礼物",
+                            "jades": "玉石"
+                        }.get(card.type, card.type)
                         
-                        # 计算文本宽度
                         text_width = self._get_text_width(card_draw, text, name_font)
-                        
-                        # 在卡片中央绘制文本
                         card_draw.text(
                             ((card_width - text_width) // 2, card_height // 2 - 10),
                             text,
@@ -185,56 +214,36 @@ class GachaPresenter:
                             fill=(200, 200, 200)
                         )
                     
-                    # 绘制卡片名称 - 使用半透明背景
+                    # 绘制卡片名称
+                    name = card.name[:7] + "..." if len(card.name) > 8 else card.name
                     name_bg = Image.new('RGBA', (card_width, 25), (0, 0, 0, 180))
                     name_draw = ImageDraw.Draw(name_bg)
-                    
-                    name = card.name
-                    if len(name) > 8:
-                        name = name[:7] + "..."
-                    
-                    # 计算文本宽度
                     name_width = self._get_text_width(name_draw, name, name_font)
-                    
                     name_draw.text(
                         ((card_width - name_width) // 2, 5),
                         name,
                         font=name_font,
                         fill=(255, 255, 255)
                     )
-                    
-                    # 将名称背景粘贴到卡片底部
                     card_img.paste(name_bg, (0, card_height - 25), name_bg)
                     
-                    # 如果是角色卡，添加稀有度标记（小图标而非边框）
-                    if card.type == "character":
-                        rarity_color = self.rarity_colors.get(card.rarity, (255, 255, 255))
-                        # 在右上角绘制小圆点表示稀有度
-                        card_draw.ellipse((card_width - 15, 5, card_width - 5, 15), fill=rarity_color)
-                    
-                    # 将卡片放到背景上
-                    # 转换为RGB模式以便粘贴到背景
+                    # 转换为RGB并粘贴到背景
                     card_rgb = Image.new('RGB', card_img.size, (0, 0, 0))
                     card_rgb.paste(card_img, (0, 0), card_img)
                     background.paste(card_rgb, (x, y))
                     
                 except Exception as e:
                     logger.error(f"绘制第{i+1}张卡片时出错: {e}")
-                    import traceback
-                    logger.error(traceback.format_exc())
             
-            # 保存图片 - 使用时间戳生成唯一文件名
+            # 保存图片
             timestamp = int(time.time() * 1000)
             random_suffix = random.randint(0, 999)
             output_path = os.path.join(self.temp_dir, f"gacha_result_{timestamp}_{random_suffix}.png")
-            logger.info(f"保存抽卡结果图片到: {output_path}")
             background.save(output_path)
             return output_path
             
         except Exception as e:
             logger.error(f"创建抽卡结果图片失败: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
             return ""
 
     def generate_gacha_image(self, result: GachaResult) -> str:
@@ -282,8 +291,7 @@ class GachaPresenter:
                 text += "  [UP!]: "
                 up_cards = []
                 for card in pool_data["up_cards"]:
-                    rarity = "UR" if card.get("rarity") == 4 else "SSR" if card.get("rarity") == 3 else "SR" if card.get("rarity") == 2 else "R"
-                    up_cards.append(f"{card.get('name')}[{rarity}]")
+                    up_cards.append(card.get("name"))
                 text += ", ".join(up_cards) + "\n"
         
         text += "\n切换卡池命令: 切换雀魂卡池 [卡池ID]"

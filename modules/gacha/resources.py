@@ -122,20 +122,13 @@ class ResourceManager:
                     "decoration": 0.09,
                     "gift": 0.60,
                     "jades": 0.30
-                },
-                "character_rates": {
-                    "UR": 0.01,
-                    "SSR": 0.04,
-                    "SR": 0.15,
-                    "R": 0.80
                 }
             }
         }
 
     def _load_available_resources(self) -> dict:
-        """加载可用资源"""
+        """加载可用资源（装饰品、礼物、玉石）"""
         resources = {
-            "character": [],
             "decoration": [],
             "gift": [],
             "jades": []
@@ -143,7 +136,6 @@ class ResourceManager:
         
         # 定义资源类型和对应的目录名
         resource_dirs = {
-            "character": "person",
             "decoration": "decoration",
             "gift": "gift",
             "jades": "jades"
@@ -153,13 +145,14 @@ class ResourceManager:
         for resource_type, dir_name in resource_dirs.items():
             dir_path = os.path.join(self.resources_dir, dir_name)
             if os.path.exists(dir_path):
+                # 使用文件名（不含扩展名）作为资源名
                 for file in os.listdir(dir_path):
                     if file.endswith(('.jpg', '.png')):
                         name = os.path.splitext(file)[0]
                         resources[resource_type].append(name)
         
         # 打印资源统计
-        logger.info(f"资源统计: 角色={len(resources['character'])}, 装饰={len(resources['decoration'])}, 礼物={len(resources['gift'])}, 玉石={len(resources['jades'])}")
+        logger.info(f"资源统计: 装饰={len(resources['decoration'])}, 礼物={len(resources['gift'])}, 玉石={len(resources['jades'])}")
         
         # 如果没有资源，添加默认资源
         for resource_type in resources.keys():
@@ -205,32 +198,33 @@ class ResourceManager:
         name = pool_data.get("name", pool_id)
         description = pool_data.get("description", "")
         
+        # 获取卡池类型
+        pool_type = pool_data.get("type", "standard")
+        if pool_type not in ["standard", "contract", "limited", "collab"]:
+            logger.warning(f"未知的卡池类型 {pool_type}，使用standard")
+            pool_type = "standard"
+        
         # 获取概率配置
         type_rates = {str(k): v for k, v in pool_data.get("rates", {}).items()}
-        character_rates = {str(k): v for k, v in pool_data.get("character_rates", {}).items()}
         
         # 创建卡牌列表
         cards = []
-        for rarity, card_list in pool_data.get("cards", {}).items():
-            for card_data in card_list:
-                cards.append(Card(
-                    name=card_data["name"],
-                    rarity=rarity,
-                    type=card_data["type"],
-                    pool=name
-                ))
+        for card_data in pool_data.get("cards", []):
+            cards.append(Card(
+                name=card_data["name"],
+                type=card_data["type"],
+                pool=name,
+                pool_type=pool_type
+            ))
         
         # 创建UP卡牌列表
         up_cards = []
         for card_data in pool_data.get("up_cards", []):
-            rarity_map = {4: "UR", 3: "SSR", 2: "SR", 1: "R"}
-            rarity = rarity_map.get(card_data.get("rarity"), "R")
-            
             up_cards.append(Card(
                 name=card_data["name"],
-                rarity=rarity,
                 type=card_data.get("type", "character"),
-                pool=name
+                pool=name,
+                pool_type=pool_type
             ))
         
         # 创建卡池对象
@@ -240,7 +234,7 @@ class ResourceManager:
             cards=cards,
             up_cards=up_cards,
             type_rates=type_rates,
-            character_rates=character_rates
+            pool_type=pool_type
         )
         
         # 设置UP概率提升
@@ -251,48 +245,71 @@ class ResourceManager:
 
     def get_random_background(self) -> Optional[str]:
         """获取随机背景图片路径"""
-        bg_dir = os.path.join(self.resources_dir, "background")
-        bg_files = [f for f in os.listdir(bg_dir) if f.endswith(('.jpg', '.png', '.jpeg', '.gif'))]
+        bg_paths = self.get_all_backgrounds()
         
-        if not bg_files:
+        if not bg_paths:
             logger.warning("背景图片目录为空")
             default_bg = os.path.join(self.resources_dir, "default_background.jpg")
             return default_bg if os.path.exists(default_bg) else None
         
-        selected_bg = random.choice(bg_files)
-        bg_path = os.path.join(bg_dir, selected_bg)
-        logger.info(f"随机选择背景图片: {bg_path}")
-        return bg_path
+        selected_bg = random.choice(bg_paths)
+        logger.debug(f"随机选择背景图片: {selected_bg}")
+        return selected_bg
 
-    def clean_temp_files(self) -> None:
-        """清理24小时前的临时文件"""
+    def get_all_backgrounds(self) -> List[str]:
+        """获取所有背景图片的路径列表
+        
+        Returns:
+            List[str]: 背景图片路径列表
+        """
+        bg_dir = os.path.join(self.resources_dir, "background")
+        if not os.path.exists(bg_dir):
+            logger.warning(f"背景图片目录不存在: {bg_dir}")
+            return []
+            
         try:
-            if not os.path.exists(self._temp_dir):
+            bg_files = []
+            for file in os.listdir(bg_dir):
+                if file.lower().endswith(('.jpg', '.png', '.jpeg', '.gif')):
+                    full_path = os.path.join(bg_dir, file)
+                    if os.path.isfile(full_path):
+                        bg_files.append(full_path)
+            
+            if not bg_files:
+                logger.warning("未找到任何背景图片")
+            else:
+                logger.debug(f"找到{len(bg_files)}张背景图片")
+            
+            return bg_files
+            
+        except Exception as e:
+            logger.error(f"获取背景图片列表时出错: {e}")
+            return []
+
+    def clean_temp_files(self, max_age: int = 3600) -> None:
+        """清理临时文件
+        
+        Args:
+            max_age: 文件最大保留时间（秒），默认1小时
+        """
+        try:
+            current_time = time.time()
+            temp_dir = self.get_temp_dir()
+            
+            if not os.path.exists(temp_dir):
                 return
                 
-            current_time = time.time()
-            max_age = 24 * 3600  # 24小时的秒数
-            
-            count = 0
-            for file_name in os.listdir(self._temp_dir):
-                if not file_name.startswith('gacha_result_'):
-                    continue
+            for file in os.listdir(temp_dir):
+                file_path = os.path.join(temp_dir, file)
+                try:
+                    if os.path.isfile(file_path):
+                        # 获取文件修改时间
+                        file_time = os.path.getmtime(file_path)
+                        if current_time - file_time > max_age:
+                            os.remove(file_path)
+                            logger.debug(f"已删除过期临时文件: {file}")
+                except Exception as e:
+                    logger.warning(f"删除临时文件失败: {file}, 错误: {e}")
                     
-                file_path = os.path.join(self._temp_dir, file_name)
-                if not os.path.isfile(file_path):
-                    continue
-                    
-                # 检查文件修改时间
-                file_mtime = os.path.getmtime(file_path)
-                if current_time - file_mtime > max_age:
-                    try:
-                        os.remove(file_path)
-                        count += 1
-                    except Exception as e:
-                        logger.error(f"删除临时文件失败 {file_path}: {e}")
-            
-            if count > 0:
-                logger.info(f"已清理 {count} 个超过24小时的临时文件")
-                
         except Exception as e:
             logger.error(f"清理临时文件时出错: {e}") 

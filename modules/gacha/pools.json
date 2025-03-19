@@ -1,70 +1,790 @@
 {
     "standard": {
+        "type": "standard",
         "display_name": "标准池",
         "description": "常驻角色池",
         "rates": {
             "character": 0.01,
             "decoration": 0.09,
-            "gift": 0.60,
-            "jades": 0.30
+            "gift": 0.6,
+            "jades": 0.3
         },
-        "character_rates": {
-            "UR": 0.01,
-            "SSR": 0.04,
-            "SR": 0.15,
-            "R": 0.80
-        },
-        "cards": {
-            "UR": [
-                { "name": "八木唯", "type": "character" }
-            ],
-            "SSR": [
-                { "name": "宫永照", "type": "character" },
-                { "name": "原村和", "type": "character" },
-                { "name": "天江衣", "type": "character" }
-            ],
-            "SR": [
-                { "name": "竹井久", "type": "character" }
-            ],
-            "R": [
-                { "name": "园城寺怜", "type": "character" },
-                { "name": "新子憧", "type": "character" }
-            ]
-        }
+        "cards": [{
+                "name": "C.C",
+                "type": "character"
+            },
+            {
+                "name": "一姬",
+                "type": "character"
+            },
+            {
+                "name": "七海礼奈",
+                "type": "character"
+            },
+            {
+                "name": "三上千织",
+                "type": "character"
+            },
+            {
+                "name": "东城玄音",
+                "type": "character"
+            },
+            {
+                "name": "九条璃雨",
+                "type": "character"
+            },
+            {
+                "name": "二之宫花",
+                "type": "character"
+            },
+            {
+                "name": "二阶堂美树",
+                "type": "character"
+            },
+            {
+                "name": "五十岚阳菜",
+                "type": "character"
+            },
+            {
+                "name": "伊芙",
+                "type": "character"
+            },
+            {
+                "name": "伊莉雅",
+                "type": "character"
+            },
+            {
+                "name": "八木唯",
+                "type": "character"
+            },
+            {
+                "name": "凉宫杏树",
+                "type": "character"
+            },
+            {
+                "name": "北原莉莉",
+                "type": "character"
+            },
+            {
+                "name": "北见纱和子",
+                "type": "character"
+            },
+            {
+                "name": "卡维",
+                "type": "character"
+            },
+            {
+                "name": "原村和",
+                "type": "character"
+            },
+            {
+                "name": "四宫冬实",
+                "type": "character"
+            },
+            {
+                "name": "四宫辉夜",
+                "type": "character"
+            },
+            {
+                "name": "园城寺怜",
+                "type": "character"
+            },
+            {
+                "name": "天江衣",
+                "type": "character"
+            },
+            {
+                "name": "如月彩音",
+                "type": "character"
+            },
+            {
+                "name": "姬川响",
+                "type": "character"
+            },
+            {
+                "name": "宫永咲",
+                "type": "character"
+            },
+            {
+                "name": "宫永照",
+                "type": "character"
+            },
+            {
+                "name": "寺崎千穗理",
+                "type": "character"
+            },
+            {
+                "name": "小野寺七羽",
+                "type": "character"
+            },
+            {
+                "name": "小鸟游星野",
+                "type": "character"
+            },
+            {
+                "name": "小鸟游雏田",
+                "type": "character"
+            },
+            {
+                "name": "小黑",
+                "type": "character"
+            },
+            {
+                "name": "岚星",
+                "type": "character"
+            },
+            {
+                "name": "抚子",
+                "type": "character"
+            },
+            {
+                "name": "新子憧",
+                "type": "character"
+            },
+            {
+                "name": "早乙女芽亚里",
+                "type": "character"
+            },
+            {
+                "name": "早坂爱",
+                "type": "character"
+            },
+            {
+                "name": "未来",
+                "type": "character"
+            },
+            {
+                "name": "柚",
+                "type": "character"
+            },
+            {
+                "name": "桃喰绮罗莉",
+                "type": "character"
+            },
+            {
+                "name": "森川绫子",
+                "type": "character"
+            },
+            {
+                "name": "汉娜",
+                "type": "character"
+            },
+            {
+                "name": "泽尼娅",
+                "type": "character"
+            },
+            {
+                "name": "浅黄睦月",
+                "type": "character"
+            },
+            {
+                "name": "琳琅",
+                "type": "character"
+            },
+            {
+                "name": "生志摩妄",
+                "type": "character"
+            },
+            {
+                "name": "白石奈奈",
+                "type": "character"
+            },
+            {
+                "name": "白银圭",
+                "type": "character"
+            },
+            {
+                "name": "相原舞",
+                "type": "character"
+            },
+            {
+                "name": "砂狼白子",
+                "type": "character"
+            },
+            {
+                "name": "福姬",
+                "type": "character"
+            },
+            {
+                "name": "福路美穗子",
+                "type": "character"
+            },
+            {
+                "name": "竹井久",
+                "type": "character"
+            },
+            {
+                "name": "红月卡莲",
+                "type": "character"
+            },
+            {
+                "name": "美游",
+                "type": "character"
+            },
+            {
+                "name": "艾丽莎",
+                "type": "character"
+            },
+            {
+                "name": "莎拉",
+                "type": "character"
+            },
+            {
+                "name": "藤本绮罗",
+                "type": "character"
+            },
+            {
+                "name": "藤田佳奈",
+                "type": "character"
+            },
+            {
+                "name": "蛇喰梦子",
+                "type": "character"
+            },
+            {
+                "name": "西园寺一羽",
+                "type": "character"
+            },
+            {
+                "name": "轻库娘",
+                "type": "character"
+            },
+            {
+                "name": "辉夜姬",
+                "type": "character"
+            },
+            {
+                "name": "陆八魔爱露",
+                "type": "character"
+            },
+            {
+                "name": "雏桃",
+                "type": "character"
+            },
+            {
+                "name": "青鸾",
+                "type": "character"
+            }
+        ],
+        "up_cards": []
     },
-    "limited_summer": {
-        "name": "夏日限定池",
-        "description": "限时UP",
+    "contract": {
+        "type": "contract",
+        "display_name": "契约池",
+        "description": "契约限定角色池",
         "rates": {
             "character": 0.02,
             "decoration": 0.08,
-            "gift": 0.60,
-            "jades": 0.30
+            "gift": 0.6,
+            "jades": 0.3
         },
-        "character_rates": {
-            "UR": 0.01,
-            "SSR": 0.04,
-            "SR": 0.15,
-            "R": 0.80
+        "cards": [{
+                "name": "C.C",
+                "type": "character"
+            },
+            {
+                "name": "一姬",
+                "type": "character"
+            },
+            {
+                "name": "七海礼奈",
+                "type": "character"
+            },
+            {
+                "name": "三上千织",
+                "type": "character"
+            },
+            {
+                "name": "东城玄音",
+                "type": "character"
+            },
+            {
+                "name": "九条璃雨",
+                "type": "character"
+            },
+            {
+                "name": "二之宫花",
+                "type": "character"
+            },
+            {
+                "name": "二阶堂美树",
+                "type": "character"
+            },
+            {
+                "name": "五十岚阳菜",
+                "type": "character"
+            },
+            {
+                "name": "伊芙",
+                "type": "character"
+            },
+            {
+                "name": "伊莉雅",
+                "type": "character"
+            },
+            {
+                "name": "八木唯",
+                "type": "character"
+            },
+            {
+                "name": "凉宫杏树",
+                "type": "character"
+            },
+            {
+                "name": "北原莉莉",
+                "type": "character"
+            },
+            {
+                "name": "北见纱和子",
+                "type": "character"
+            },
+            {
+                "name": "卡维",
+                "type": "character"
+            },
+            {
+                "name": "原村和",
+                "type": "character"
+            },
+            {
+                "name": "四宫冬实",
+                "type": "character"
+            },
+            {
+                "name": "四宫辉夜",
+                "type": "character"
+            },
+            {
+                "name": "园城寺怜",
+                "type": "character"
+            },
+            {
+                "name": "天江衣",
+                "type": "character"
+            },
+            {
+                "name": "如月彩音",
+                "type": "character"
+            },
+            {
+                "name": "姬川响",
+                "type": "character"
+            },
+            {
+                "name": "宫永咲",
+                "type": "character"
+            },
+            {
+                "name": "宫永照",
+                "type": "character"
+            },
+            {
+                "name": "寺崎千穗理",
+                "type": "character"
+            },
+            {
+                "name": "小野寺七羽",
+                "type": "character"
+            },
+            {
+                "name": "小鸟游星野",
+                "type": "character"
+            },
+            {
+                "name": "小鸟游雏田",
+                "type": "character"
+            },
+            {
+                "name": "小黑",
+                "type": "character"
+            },
+            {
+                "name": "岚星",
+                "type": "character"
+            },
+            {
+                "name": "抚子",
+                "type": "character"
+            },
+            {
+                "name": "新子憧",
+                "type": "character"
+            },
+            {
+                "name": "早乙女芽亚里",
+                "type": "character"
+            },
+            {
+                "name": "早坂爱",
+                "type": "character"
+            },
+            {
+                "name": "未来",
+                "type": "character"
+            },
+            {
+                "name": "柚",
+                "type": "character"
+            },
+            {
+                "name": "桃喰绮罗莉",
+                "type": "character"
+            },
+            {
+                "name": "森川绫子",
+                "type": "character"
+            },
+            {
+                "name": "汉娜",
+                "type": "character"
+            },
+            {
+                "name": "泽尼娅",
+                "type": "character"
+            },
+            {
+                "name": "浅黄睦月",
+                "type": "character"
+            },
+            {
+                "name": "琳琅",
+                "type": "character"
+            },
+            {
+                "name": "生志摩妄",
+                "type": "character"
+            },
+            {
+                "name": "白石奈奈",
+                "type": "character"
+            },
+            {
+                "name": "白银圭",
+                "type": "character"
+            },
+            {
+                "name": "相原舞",
+                "type": "character"
+            },
+            {
+                "name": "砂狼白子",
+                "type": "character"
+            },
+            {
+                "name": "福姬",
+                "type": "character"
+            },
+            {
+                "name": "福路美穗子",
+                "type": "character"
+            },
+            {
+                "name": "竹井久",
+                "type": "character"
+            },
+            {
+                "name": "红月卡莲",
+                "type": "character"
+            },
+            {
+                "name": "美游",
+                "type": "character"
+            },
+            {
+                "name": "艾丽莎",
+                "type": "character"
+            },
+            {
+                "name": "莎拉",
+                "type": "character"
+            },
+            {
+                "name": "藤本绮罗",
+                "type": "character"
+            },
+            {
+                "name": "藤田佳奈",
+                "type": "character"
+            },
+            {
+                "name": "蛇喰梦子",
+                "type": "character"
+            },
+            {
+                "name": "西园寺一羽",
+                "type": "character"
+            },
+            {
+                "name": "轻库娘",
+                "type": "character"
+            },
+            {
+                "name": "辉夜姬",
+                "type": "character"
+            },
+            {
+                "name": "陆八魔爱露",
+                "type": "character"
+            },
+            {
+                "name": "雏桃",
+                "type": "character"
+            },
+            {
+                "name": "青鸾",
+                "type": "character"
+            }
+        ],
+        "up_cards": []
+    },
+    "limited": {
+        "type": "limited",
+        "display_name": "限定池",
+        "description": "限时限定角色池",
+        "rates": {
+            "character": 0.02,
+            "decoration": 0.08,
+            "gift": 0.6,
+            "jades": 0.3
         },
-        "up_rates": {
-            "UR": 0.005,
-            "SSR": 0.01
+        "cards": [{
+                "name": "一姬",
+                "type": "character"
+            },
+            {
+                "name": "七海礼奈",
+                "type": "character"
+            },
+            {
+                "name": "三上千织",
+                "type": "character"
+            },
+            {
+                "name": "九条璃雨",
+                "type": "character"
+            },
+            {
+                "name": "二之宫花",
+                "type": "character"
+            },
+            {
+                "name": "二阶堂美树",
+                "type": "character"
+            },
+            {
+                "name": "五十岚阳菜",
+                "type": "character"
+            },
+            {
+                "name": "八木唯",
+                "type": "character"
+            },
+            {
+                "name": "凉宫杏树",
+                "type": "character"
+            },
+            {
+                "name": "北见纱和子",
+                "type": "character"
+            },
+            {
+                "name": "卡维",
+                "type": "character"
+            },
+            {
+                "name": "四宫冬实",
+                "type": "character"
+            },
+            {
+                "name": "如月彩音",
+                "type": "character"
+            },
+            {
+                "name": "寺崎千穗理",
+                "type": "character"
+            },
+            {
+                "name": "小野寺七羽",
+                "type": "character"
+            },
+            {
+                "name": "小鸟游雏田",
+                "type": "character"
+            },
+            {
+                "name": "抚子",
+                "type": "character"
+            },
+            {
+                "name": "未来",
+                "type": "character"
+            },
+            {
+                "name": "柚",
+                "type": "character"
+            },
+            {
+                "name": "森川绫子",
+                "type": "character"
+            },
+            {
+                "name": "汉娜",
+                "type": "character"
+            },
+            {
+                "name": "泽尼娅",
+                "type": "character"
+            },
+            {
+                "name": "白石奈奈",
+                "type": "character"
+            },
+            {
+                "name": "相原舞",
+                "type": "character"
+            },
+            {
+                "name": "福姬",
+                "type": "character"
+            },
+            {
+                "name": "艾丽莎",
+                "type": "character"
+            },
+            {
+                "name": "莎拉",
+                "type": "character"
+            },
+            {
+                "name": "藤本绮罗",
+                "type": "character"
+            },
+            {
+                "name": "藤田佳奈",
+                "type": "character"
+            },
+            {
+                "name": "辉夜姬",
+                "type": "character"
+            },
+            {
+                "name": "雏桃",
+                "type": "character"
+            },
+            {
+                "name": "青鸾",
+                "type": "character"
+            }
+        ],
+        "up_cards": []
+    },
+    "collab": {
+        "type": "collab",
+        "display_name": "联名池",
+        "description": "联名合作角色池",
+        "rates": {
+            "character": 0.02,
+            "decoration": 0.08,
+            "gift": 0.6,
+            "jades": 0.3
         },
-        "up_cards": [],
-        "cards": {
-            "UR": [],
-            "SSR": [
-                { "name": "宫永照", "type": "character" },
-                { "name": "原村和", "type": "character" }
-            ],
-            "SR": [
-                { "name": "竹井久", "type": "character" }
-            ],
-            "R": [
-                { "name": "园城寺怜", "type": "character" },
-                { "name": "新子憧", "type": "character" }
-            ]
-        }
+        "cards": [{
+                "name": "C.C",
+                "type": "character"
+            },
+            {
+                "name": "伊莉雅",
+                "type": "character"
+            },
+            {
+                "name": "原村和",
+                "type": "character"
+            },
+            {
+                "name": "四宫辉夜",
+                "type": "character"
+            },
+            {
+                "name": "园城寺怜",
+                "type": "character"
+            },
+            {
+                "name": "天江衣",
+                "type": "character"
+            },
+            {
+                "name": "宫永咲",
+                "type": "character"
+            },
+            {
+                "name": "宫永照",
+                "type": "character"
+            },
+            {
+                "name": "小鸟游星野",
+                "type": "character"
+            },
+            {
+                "name": "小黑",
+                "type": "character"
+            },
+            {
+                "name": "新子憧",
+                "type": "character"
+            },
+            {
+                "name": "早乙女芽亚里",
+                "type": "character"
+            },
+            {
+                "name": "早坂爱",
+                "type": "character"
+            },
+            {
+                "name": "桃喰绮罗莉",
+                "type": "character"
+            },
+            {
+                "name": "浅黄睦月",
+                "type": "character"
+            },
+            {
+                "name": "生志摩妄",
+                "type": "character"
+            },
+            {
+                "name": "白银圭",
+                "type": "character"
+            },
+            {
+                "name": "砂狼白子",
+                "type": "character"
+            },
+            {
+                "name": "福路美穗子",
+                "type": "character"
+            },
+            {
+                "name": "竹井久",
+                "type": "character"
+            },
+            {
+                "name": "红月卡莲",
+                "type": "character"
+            },
+            {
+                "name": "美游",
+                "type": "character"
+            },
+            {
+                "name": "蛇喰梦子",
+                "type": "character"
+            },
+            {
+                "name": "陆八魔爱露",
+                "type": "character"
+            }
+        ],
+        "up_cards": []
     }
 }

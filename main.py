@@ -78,7 +78,7 @@ class MajsoulPlugin(Star):
 【牌理分析】
 - 牌理 <手牌>：分析麻将手牌（如：牌理 1112345678999m）
 """
-        return help_text
+        yield event.plain_result(help_text)
 
     @filter.command("雀魂查询", alias=['雀魂信息'])
     async def handle_query(self, event: AstrMessageEvent):
@@ -148,12 +148,16 @@ class MajsoulPlugin(Star):
     @filter.command("雀魂十连")
     async def handle_gacha(self, event: AstrMessageEvent):
         """模拟雀魂十连抽卡"""
-        result = await self.gacha.perform_gacha(10)
-        if isinstance(result, str):
-            yield event.plain_result(result)
-        elif isinstance(result, dict) and 'image_path' in result:
+        pool = self.gacha.pools.get(self.gacha.current_pool)
+        if not pool:
+            pool = self.gacha.pools["standard"]
+        
+        result = self.gacha.gacha_ten(pool)
+        image_path = self.gacha.presenter.create_gacha_result_image(result)
+        
+        if image_path and os.path.exists(image_path):
             message_result = event.make_result()
-            message_result.chain = [Plain(result.get('text', '雀魂十连结果:')), Image(file=result['image_path'])]
+            message_result.chain = [Plain(f"【{pool.display_name}】十连抽卡结果:"), Image(file=image_path)]
             yield message_result
         else:
             yield event.plain_result("抽卡结果生成失败")
@@ -173,12 +177,12 @@ class MajsoulPlugin(Star):
     @filter.command("查看雀魂卡池")
     async def handle_view_pools(self, event: AstrMessageEvent):
         """查看当前可用的雀魂卡池"""
-        available_pools = self.gacha.get_available_pools()
-        current_pool = self.gacha.current_pool
+        pool = self.gacha.pools.get(self.gacha.current_pool)
+        if not pool:
+            pool = self.gacha.pools["standard"]
         
-        response = f"当前使用的卡池: {current_pool}\n\n可用卡池列表:\n"
-        response += "\n".join([f"- {pool}" for pool in available_pools])
-        yield event.plain_result(response)
+        text = self.gacha.presenter.format_all_pools(pool.name)
+        yield event.plain_result(text)
 
     @filter.command("牌理")
     async def mahjong_analysis(self, event: AstrMessageEvent):

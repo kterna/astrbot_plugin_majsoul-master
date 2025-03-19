@@ -1,74 +1,133 @@
 from typing import Dict, List, Tuple, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import os
 import logging
 import random
+import re
 
 logger = logging.getLogger(__name__)
 
 @dataclass
 class Card:
     name: str
-    rarity: str  # "UR", "SSR", "SR", "R"
     type: str    # "character", "decoration", "gift", "jades"
-    pool: str    # 所属卡池
+    pool: str    # 所属卡池名称
+    pool_type: str = "standard"  # 卡池类型：standard/contract/limited/collab
+    _image_path_cache: Dict[str, Optional[str]] = field(default_factory=dict)
+
+    def _find_image_by_pattern(self, char_dir: str, pattern: str) -> Optional[str]:
+        """使用正则表达式查找匹配的图片
+        
+        Args:
+            char_dir: 角色目录路径
+            pattern: 正则表达式模式
+            
+        Returns:
+            Optional[str]: 匹配的图片路径，如果没找到则返回None
+        """
+        try:
+            regex = re.compile(pattern)
+            for file in os.listdir(char_dir):
+                if not file.endswith(('.jpg', '.png')):
+                    continue
+                if regex.search(file):
+                    return os.path.join(char_dir, file)
+        except Exception as e:
+            logger.error(f"正则匹配出错: {e}")
+        return None
 
     def get_border_color(self) -> Tuple[int, int, int]:
         """获取边框颜色"""
         if self.type == "character":
-            return {
-                "UR": (255, 0, 0),      # 红色
-                "SSR": (148, 0, 211),   # 紫色
-                "SR": (255, 215, 0),    # 金色
-                "R": (192, 192, 192),   # 银色
-            }.get(self.rarity, (255, 255, 255))
+            return (255, 105, 180)  # 角色卡使用粉色边框
         elif self.type == "decoration":
-            return (255, 215, 0)  # 装饰品统一金色边框
+            return (255, 215, 0)    # 装饰品使用金色边框
+        elif self.type == "gift":
+            return (255, 165, 0)    # 礼物使用橙色边框
         else:
             return (255, 255, 255)  # 其他物品白色边框
 
     def get_image_path(self, resources_dir: str) -> Optional[str]:
-        """获取卡片图片路径
+        """获取卡片图片路径"""
+        cache_key = f"{self.name}_{self.type}_{self.pool}_{self.pool_type}_{resources_dir}"
         
-        Args:
-            resources_dir: 资源目录
+        if self.pool_type != "limited" and cache_key in self._image_path_cache:
+            return self._image_path_cache[cache_key]
             
-        Returns:
-            Optional[str]: 图片路径，如果不存在则返回None
-        """
         try:
-            # 根据卡片类型确定子目录
             if self.type == "character":
                 sub_dir = "person"
+                char_dir = os.path.join(resources_dir, sub_dir, self.name)
+                if not os.path.exists(char_dir) or not os.path.isdir(char_dir):
+                    default_dir = os.path.join(resources_dir, sub_dir, "默认角色")
+                    if os.path.exists(default_dir) and os.path.isdir(default_dir):
+                        char_dir = default_dir
+                    else:
+                        self._image_path_cache[cache_key] = None
+                        return None
+
+                keywords = {
+                    "standard": "初始形象",
+                    "contract": "缔结契约后获得",
+                    "limited": "活动限定",
+                    "collab": "联动"
+                }
+                
+                keyword = keywords.get(self.pool_type, "初始形象")
+                
+                matching_images = []
+                for file in os.listdir(char_dir):
+                    if not file.endswith('.png') and not file.endswith('.jpg'):
+                        continue
+                    if keyword in file:
+                        matching_images.append(file)
+                
+                if matching_images:
+                    if self.pool_type == "limited":
+                        selected_image = random.choice(matching_images)
+                    else:
+                        selected_image = matching_images[0]
+                    
+                    image_path = os.path.join(char_dir, selected_image)
+                    if self.pool_type != "limited":
+                        self._image_path_cache[cache_key] = image_path
+                    return image_path
+                
+                if keyword != "初始形象":
+                    for file in os.listdir(char_dir):
+                        if not file.endswith('.png') and not file.endswith('.jpg'):
+                            continue
+                        if "初始形象" in file:
+                            image_path = os.path.join(char_dir, file)
+                            self._image_path_cache[cache_key] = image_path
+                            return image_path
+                
+                self._image_path_cache[cache_key] = None
+                return None
+                
             else:
                 sub_dir = self.type
-            
-            # 构建图片路径
-            base_path = os.path.join(resources_dir, sub_dir, self.name)
-            logger.debug(f"尝试查找图片: {base_path}.[jpg/png]")
-            
-            # 检查jpg和png格式
-            for ext in ['.jpg', '.png']:
-                path = base_path + ext
-                if os.path.exists(path):
-                    logger.debug(f"找到图片: {path}")
-                    return path
-            
-            # 如果找不到图片，记录警告
-            logger.warning(f"找不到图片: {base_path}.[jpg/png]")
-            
-            # 尝试查找同类型的默认图片
-            default_path = os.path.join(resources_dir, sub_dir, "默认" + self.type)
-            for ext in ['.jpg', '.png']:
-                path = default_path + ext
-                if os.path.exists(path):
-                    logger.info(f"使用默认图片: {path}")
-                    return path
-                    
-            return None
-        except Exception as e:
-            logger.error(f"获取图片路径时出错: {e}")
+                base_path = os.path.join(resources_dir, sub_dir, self.name)
+                
+                for ext in ['.jpg', '.png']:
+                    path = base_path + ext
+                    if os.path.exists(path):
+                        self._image_path_cache[cache_key] = path
+                        return path
+                
+                default_path = os.path.join(resources_dir, sub_dir, "默认" + self.type)
+                for ext in ['.jpg', '.png']:
+                    path = default_path + ext
+                    if os.path.exists(path):
+                        self._image_path_cache[cache_key] = path
+                        return path
+                
+                self._image_path_cache[cache_key] = None
+                return None
+                
+        except Exception:
+            self._image_path_cache[cache_key] = None
             return None
 
 @dataclass
@@ -77,17 +136,9 @@ class GachaPool:
     description: str
     cards: List[Card]
     up_cards: List[Card]
-    
-    # 总体类型概率
+    pool_type: str = "standard"
     type_rates: Dict[str, float] = None
-    
-    # 角色稀有度概率
-    character_rates: Dict[str, float] = None
-    
-    # UP角色概率提升
-    up_rate_boost: float = 0.5  # UP卡在同稀有度中占50%概率
-    
-    # 显示名称
+    up_rate_boost: float = 0.5
     display_name: str = None
     
     def __post_init__(self):
@@ -96,22 +147,18 @@ class GachaPool:
         
         if self.type_rates is None:
             self.type_rates = {
-                "character": 0.01,  # 角色 1%
-                "decoration": 0.09, # 装饰品 9%
-                "gift": 0.60,      # 礼物 60%
-                "jades": 0.30      # 玉石 30%
+                "character": 0.01,
+                "decoration": 0.09,
+                "gift": 0.60,
+                "jades": 0.30
             }
         else:
-            # 确保type_rates中的键都是字符串类型
             self.type_rates = {str(k): v for k, v in self.type_rates.items()}
-        
-        if self.character_rates is None:
-            self.character_rates = {
-                "UR": 0.01,  # 1%
-                "SSR": 0.04, # 4%
-                "SR": 0.15,  # 15%
-                "R": 0.80    # 80%
-            }
+            
+        for card in self.cards:
+            card.pool_type = self.pool_type
+        for card in self.up_cards:
+            card.pool_type = self.pool_type
 
 @dataclass
 class GachaResult:

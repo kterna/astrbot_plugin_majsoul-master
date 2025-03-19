@@ -1,7 +1,4 @@
-# mahjong_helper.py
-
 from mahjong.hand_calculating.hand import HandCalculator
-from mahjong.hand_calculating.hand_config import HandConfig
 from mahjong.shanten import Shanten
 from mahjong.tile import TilesConverter
 
