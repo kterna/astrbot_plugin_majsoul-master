@@ -72,10 +72,9 @@ YAKU_NAME_MAP = {
 }
 
 class MahjongHelper:
-    """日本麻将助手：提供简化的麻将计算接口"""
+    """日本麻将基础计算工具类"""
     
     def __init__(self):
-        """初始化麻将助手"""
         self.calculator = HandCalculator()
         self.shanten = Shanten()
     
@@ -86,43 +85,101 @@ class MahjongHelper:
         else:
             return TilesConverter.string_to_34_array(man=man, pin=pin, sou=sou, honors=honors)
     
-    def calculate_shanten(self, man='', pin='', sou='', honors=''):
+    def calculate_shanten(self, tiles_34=None, man='', pin='', sou='', honors=''):
         """计算向听数"""
-        tiles = self.convert_tiles(man, pin, sou, honors, to_136=False)
-        return self.shanten.calculate_shanten(tiles)
+        if tiles_34 is not None:
+            return self.shanten.calculate_shanten(tiles_34)
+        else:
+            tiles = self.convert_tiles(man, pin, sou, honors, to_136=False)
+            return self.shanten.calculate_shanten(tiles)
+    
+    def calculate_ukeire(self, tiles_136, print_progress=False):
+        """计算14张牌的打牌选择和进张"""
+        tiles_34 = TilesConverter.to_34_array(tiles_136)
+        current_shanten = self.shanten.calculate_shanten(tiles_34)
+        ukeire_results = []
+        
+        for discard_pos in range(len(tiles_34)):
+            if not tiles_34[discard_pos]:
+                continue
+                
+            tiles_34[discard_pos] -= 1
+            ukeire = 0
+            waiting_tiles = []
+            
+            for try_tile in range(len(tiles_34)):
+                if tiles_34[try_tile] >= 4:
+                    continue
+                    
+                tiles_34[try_tile] += 1
+                new_shanten = self.shanten.calculate_shanten(tiles_34)
+                
+                if new_shanten < current_shanten:
+                    original_count = tiles_34[try_tile] - 1
+                    if try_tile == discard_pos:
+                        original_count += 1
+                    remaining = 4 - original_count
+                    if remaining > 0:
+                        ukeire += remaining
+                        waiting_tiles.append((try_tile, remaining))
+                    
+                tiles_34[try_tile] -= 1
+            
+            tiles_34[discard_pos] += 1
+            
+            if ukeire > 0:
+                tile_type = ['m', 'p', 's', 'z'][discard_pos // 9]
+                tile_number = discard_pos % 9 + 1
+                
+                result = {
+                    'tile_to_discard': f"{tile_number}{tile_type}",
+                    'tile_index': discard_pos,
+                    'ukeire': ukeire,
+                    'waiting': waiting_tiles,
+                    'waiting_tiles_str': self._convert_tiles_to_str(waiting_tiles)
+                }
+                
+                ukeire_results.append(result)
+                
+                if print_progress:
+                    print(f"打{tile_number}{tile_type}: 进张数={ukeire}, "
+                          f"待张={result['waiting_tiles_str']}")
+        
+        return sorted(ukeire_results, key=lambda x: (-x['ukeire'], x['tile_index']))
+
+    def _convert_tiles_to_str(self, tiles_34_with_count):
+        """将34格式的牌数组转换为可读字符串"""
+        result = []
+        for tile, count in tiles_34_with_count:
+            tile_type = ['m', 'p', 's', 'z'][tile // 9]
+            tile_number = tile % 9 + 1
+            result.append(f"{tile_number}{tile_type}:{count}张")
+        return "、".join(result)
     
     def estimate_hand_value(self, tiles_man='', tiles_pin='', tiles_sou='', tiles_honors='',
                            win_tile_type='', win_tile_value=''):
         """估算门清荣和手牌价值"""
-        # 转换手牌
         tiles = self.convert_tiles(tiles_man, tiles_pin, tiles_sou, tiles_honors)
-        
-        # 转换和牌
         win_tile_dict = {win_tile_type: win_tile_value}
         win_tile = self.convert_tiles(**win_tile_dict)[0]
-        
-        # 估算手牌价值
         return self.calculator.estimate_hand_value(tiles, win_tile)
-    
 
 
 class PaiAnalyzer:
-    """麻将牌理分析器，解析手牌并计算向听数和得点"""
+    """麻将牌理分析器"""
     
     def __init__(self):
         self.helper = MahjongHelper()
     
     def parse_hand(self, hand_str):
         """解析手牌字符串，返回万、筒、索、字牌的分类"""
-        # 初始化空字符串
         man = pin = sou = honors = ''
-        
-        # 提取数字和类型
         current_numbers = ''
+        
         for char in hand_str:
             if char.isdigit():
                 current_numbers += char
-            elif char in 'mMpPsS':  # 万、筒、索
+            elif char in 'mMpPsS':
                 if char.lower() == 'm':
                     man += current_numbers
                 elif char.lower() == 'p':
@@ -130,55 +187,130 @@ class PaiAnalyzer:
                 elif char.lower() == 's':
                     sou += current_numbers
                 current_numbers = ''
-            elif char in 'zZ':  # 字牌
+            elif char in 'zZ':
                 honors += current_numbers
                 current_numbers = ''
         
         return man, pin, sou, honors
     
     def analyze_hand(self, hand_str):
-        """分析手牌，计算向听数"""
+        """分析手牌，返回向听数、进张、和牌信息等"""
         try:
-            # 解析手牌
             man, pin, sou, honors = self.parse_hand(hand_str)
+            tiles_136 = self.helper.convert_tiles(man, pin, sou, honors)
+            tiles_34 = TilesConverter.to_34_array(tiles_136)
+            total_tiles = sum(tiles_34)
+            shanten = self.helper.calculate_shanten(tiles_34=tiles_34)
+            result = f"手牌: {hand_str}\n"
             
-            # 计算向听数
-            shanten = self.helper.calculate_shanten(man, pin, sou, honors)
-            
-            # 生成分析结果
-            result = f"手牌: {hand_str}\n向听数: {shanten}\n"
-            
-            if shanten == 0:
-                result += "听牌: [待实现]\n"
-            elif shanten == -1:
-                # 和了，计算得点
-                if man:
-                    win_tile_type, win_tile_value = 'man', man[-1]
-                elif pin:
-                    win_tile_type, win_tile_value = 'pin', pin[-1]
-                elif sou:
-                    win_tile_type, win_tile_value = 'sou', sou[-1]
-                elif honors:
-                    win_tile_type, win_tile_value = 'honors', honors[-1]
-                
-                hand_result = self.helper.estimate_hand_value(
-                    tiles_man=man, tiles_pin=pin, 
-                    tiles_sou=sou, tiles_honors=honors,
-                    win_tile_type=win_tile_type, win_tile_value=win_tile_value
-                )
-                
-                if hand_result.yaku is None or hand_result.han == 0:
-                    result += "无役，不能和牌\n"
+            if total_tiles == 14:
+                result += "手牌数: 14张\n"
+                if shanten == -1:
+                    if man:
+                        win_tile_type, win_tile_value = 'man', man[-1]
+                    elif pin:
+                        win_tile_type, win_tile_value = 'pin', pin[-1]
+                    elif sou:
+                        win_tile_type, win_tile_value = 'sou', sou[-1]
+                    elif honors:
+                        win_tile_type, win_tile_value = 'honors', honors[-1]
+                    
+                    hand_result = self.helper.estimate_hand_value(
+                        tiles_man=man, tiles_pin=pin, 
+                        tiles_sou=sou, tiles_honors=honors,
+                        win_tile_type=win_tile_type, win_tile_value=win_tile_value
+                    )
+                    
+                    if hand_result.yaku is None or hand_result.han == 0:
+                        result += "无役，不能和牌\n"
+                    else:
+                        result += f"和牌分析:\n番数: {hand_result.han}, 符数: {hand_result.fu}\n"
+                        result += f"点数: {hand_result.cost['main']}\n"
+                        result += "役种:\n"
+                        for yaku in hand_result.yaku:
+                            yaku_name = str(yaku)
+                            chinese_name = YAKU_NAME_MAP.get(yaku_name, yaku_name)
+                            result += f"- {chinese_name}\n"
                 else:
-                    result += f"和牌分析:\n番数: {hand_result.han}, 符数: {hand_result.fu}\n"
-                    result += f"点数: {hand_result.cost['main']}\n"
-                    result += "役种:\n"
-                    for yaku in hand_result.yaku:
-                        yaku_name = str(yaku)
-                        chinese_name = YAKU_NAME_MAP.get(yaku_name, yaku_name)
-                        result += f"- {chinese_name}\n"
+                    result += f"向听数: {shanten}\n\n打牌建议:\n"
+                    ukeire_results = self.helper.calculate_ukeire(tiles_136)
+                    
+                    for i, ukeire in enumerate(ukeire_results, 1):
+                        result += f"{i}. 打{ukeire['tile_to_discard']}: 进张数={ukeire['ukeire']}\n"
+                        tiles_after = tiles_34.copy()
+                        tiles_after[ukeire['tile_index']] -= 1
+                        shanten_after = self.helper.calculate_shanten(tiles_34=tiles_after)
+                        
+                        if shanten_after == 0:
+                            result += f"   打出后听牌，待张：{ukeire['waiting_tiles_str']}\n"
+                        else:
+                            result += f"   待张：{ukeire['waiting_tiles_str']}\n"
+            
+            elif total_tiles == 13:
+                result += "手牌数: 13张\n"
+                if shanten == 0:
+                    waiting_tiles = []
+                    waiting_count = 0
+                    original_tiles_34 = tiles_34.copy()
+                    
+                    for try_tile in range(34):
+                        if original_tiles_34[try_tile] >= 4:
+                            continue
+                            
+                        tiles_34[try_tile] += 1
+                        if self.helper.calculate_shanten(tiles_34=tiles_34) == -1:
+                            remaining = 4 - original_tiles_34[try_tile]
+                            if remaining > 0:
+                                waiting_tiles.append((try_tile, remaining))
+                                waiting_count += remaining
+                        tiles_34[try_tile] -= 1
+                    
+                    result += "听牌！\n"
+                    result += f"共{waiting_count}张铳牌\n"
+                    result += "听牌张："
+                    waiting_str = []
+                    for tile, count in waiting_tiles:
+                        tile_type = ['m', 'p', 's', 'z'][tile // 9]
+                        tile_number = tile % 9 + 1
+                        waiting_str.append(f"{tile_number}{tile_type}:{count}张")
+                    result += "、".join(waiting_str) + "\n"
+                else:
+                    result += f"向听数: {shanten}\n"
+                    best_tiles = []
+                    best_shanten = shanten
+                    original_tiles_34 = tiles_34.copy()
+
+                    for try_tile in range(34):
+                        if original_tiles_34[try_tile] >= 4:
+                            continue
+                        
+                        tiles_34[try_tile] += 1
+                        new_shanten = self.helper.calculate_shanten(tiles_34=tiles_34)
+                        if new_shanten < best_shanten:
+                            remaining = 4 - original_tiles_34[try_tile]
+                            if remaining > 0:
+                                best_tiles = [(try_tile, remaining)]
+                            best_shanten = new_shanten
+                        elif new_shanten == best_shanten:
+                            remaining = 4 - original_tiles_34[try_tile]
+                            if remaining > 0:
+                                best_tiles.append((try_tile, remaining))
+                        tiles_34[try_tile] -= 1
+                    
+                    total_tiles = sum(count for _, count in best_tiles)
+                    result += f"进张数：{total_tiles}张\n进张："
+                    
+                    tiles_str = []
+                    for tile, count in best_tiles:
+                        tile_type = ['m', 'p', 's', 'z'][tile // 9]
+                        tile_number = tile % 9 + 1
+                        tiles_str.append(f"{tile_number}{tile_type}:{count}张")
+                    result += "、".join(tiles_str)
+            
+            else:
+                result += f"错误：手牌数量（{total_tiles}）不正确，应为13或14张\n"
             
             return result
-        
+            
         except Exception as e:
             return f"分析失败: {str(e)}"
