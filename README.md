@@ -3,6 +3,9 @@
 这是一个为AstrBot开发的雀魂多功能插件，提供雀魂战绩查询、模拟抽卡等功能。
 目前仍为开发测试阶段，可能存在未知问题。
 
+[![moe_counter](https://count.getloli.com/get/@astrbot_plugin_majsoul-master?theme=moebooru)](https://github.com/kterna/astrbot_plugin_majsoul-master)
+
+
 ## 功能特点
 
 1. **战绩查询**
