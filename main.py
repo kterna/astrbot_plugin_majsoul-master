@@ -7,7 +7,7 @@ from .modules.analysis.mahjong_utils import PaiAnalyzer
 import os
 import re
 
-@register("astrbot_plugin_majsoul", "AstrBot Team", "雀魂多功能插件", "1.2.0")
+@register("astrbot_plugin_majsoul", "AstrBot Team", "雀魂多功能插件", "1.3.0")
 class MajsoulPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
