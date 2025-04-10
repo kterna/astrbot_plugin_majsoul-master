@@ -16,8 +16,11 @@ class ImageUtils:
             bg_files = [f for f in os.listdir(bg_dir) if f.endswith(('.jpg', '.png'))]
             if bg_files:
                 bg_path = os.path.join(bg_dir, random.choice(bg_files))
-                background = Image.open(bg_path)
-                return background.resize((width, height))
+                try:
+                    background = Image.open(bg_path)
+                    return background.resize((width, height))
+                except Exception as e:
+                    logger.error(f"加载背景图片失败: {e}")
         return Image.new('RGB', (width, height), (30, 30, 30))
 
     @staticmethod
@@ -99,15 +102,15 @@ class ImageUtils:
             url: 图片URL
             
         Returns:
-            下载的图片对象，下载失败则返回None
+            Optional[Image.Image]: 下载的图片，如果下载失败则返回None
         """
         try:
             response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            return Image.open(io.BytesIO(response.content))
+            if response.status_code == 200:
+                return Image.open(io.BytesIO(response.content))
         except Exception as e:
             logger.error(f"下载图片失败: {e}")
-            return None
+        return None
     
     @staticmethod
     def create_rounded_rectangle(
