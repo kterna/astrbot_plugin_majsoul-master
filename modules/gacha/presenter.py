@@ -20,10 +20,6 @@ class GachaPresenter:
         self.temp_dir = resource_manager.get_temp_dir()
         logger.info(f"使用临时目录: {self.temp_dir}")
         
-        # 图片缓存
-        self._image_cache = {}
-        self._cache_size = 100  # 最大缓存数量
-        
         # 加载字体
         self._load_fonts()
         
@@ -34,10 +30,6 @@ class GachaPresenter:
             "gift": (255, 165, 0),         # 橙色
             "jades": (64, 224, 208)        # 青色
         }
-        
-        # 预加载常用背景
-        self._background_cache = {}
-        self._preload_backgrounds()
 
     def _load_fonts(self):
         """加载字体"""
@@ -59,60 +51,21 @@ class GachaPresenter:
             logger.warning("未找到合适的字体，将使用默认字体")
             self.font_path = ImageFont.load_default()
     
-    def _preload_backgrounds(self):
-        """预加载背景图片"""
-        try:
-            # 获取所有背景图片路径
-            bg_paths = self.resource_manager.get_all_backgrounds()
-            # 只预加载前5个背景
-            for path in bg_paths[:5]:
-                if os.path.exists(path):
-                    try:
-                        img = Image.open(path)
-                        self._background_cache[path] = img
-                        logger.info(f"预加载背景图片: {path}")
-                    except Exception as e:
-                        logger.error(f"预加载背景图片失败: {e}")
-        except Exception as e:
-            logger.error(f"预加载背景图片过程出错: {e}")
-    
-    def _get_cached_image(self, path: str) -> Optional[Image.Image]:
-        """从缓存获取图片"""
-        if path in self._image_cache:
-            return self._image_cache[path]
-        
-        try:
-            if os.path.exists(path):
-                img = Image.open(path)
-                # 如果缓存已满，移除最早的项
-                if len(self._image_cache) >= self._cache_size:
-                    self._image_cache.pop(next(iter(self._image_cache)))
-                self._image_cache[path] = img
-                return img
-        except Exception as e:
-            logger.error(f"加载图片失败: {e}")
-        return None
-    
     def _get_background(self) -> Image.Image:
         """获取背景图片"""
         try:
-            # 优先从缓存获取
-            if self._background_cache:
-                return random.choice(list(self._background_cache.values())).copy()
-            
-            # 如果缓存为空，尝试获取新背景
-            bg_path = self.resource_manager.get_random_background()
-            if bg_path and os.path.exists(bg_path):
-                try:
-                    background = Image.open(bg_path)
-                    return background
-                except Exception as e:
-                    logger.error(f"加载背景图片失败: {e}")
+            # 获取所有背景图片路径
+            bg_paths = self.resource_manager.get_all_backgrounds()
+            if bg_paths:
+                # 随机选择一个背景
+                bg_path = random.choice(bg_paths)
+                if os.path.exists(bg_path):
+                    return Image.open(bg_path)
         except Exception as e:
-            logger.error(f"获取背景图片失败: {e}")
+            logger.error(f"加载背景图片失败: {e}")
         
-        # 如果获取背景失败，返回纯色背景
-        return Image.new('RGB', (800, 600), (30, 30, 40))
+        # 如果加载失败，创建一个默认背景
+        return Image.new('RGB', (800, 600), (30, 30, 30))
 
     def _get_text_width(self, draw, text, font):
         """获取文本宽度，兼容不同版本的PIL"""
@@ -187,18 +140,20 @@ class GachaPresenter:
                     # 绘制半透明卡片背景
                     card_draw.rectangle((0, 0, card_width, card_height), fill=card_bg_color)
                     
-                    # 尝试从缓存加载卡片图片
+                    # 获取卡片图片路径并加载
                     card_image_path = card.get_image_path(self.resources_dir)
-                    if card_image_path:
-                        card_image = self._get_cached_image(card_image_path)
-                        if card_image:
+                    if card_image_path and os.path.exists(card_image_path):
+                        try:
+                            card_image = Image.open(card_image_path)
                             # 调整图片大小
                             card_image = card_image.resize((card_width - 6, card_height - 30))
                             # 将图片粘贴到卡片中央
                             card_img.paste(card_image, (3, 3))
+                        except Exception as e:
+                            logger.error(f"加载卡片图片失败: {e}")
                     
                     # 如果没有找到图片，绘制占位符
-                    if not card_image_path or not card_image:
+                    if not card_image_path or not os.path.exists(card_image_path):
                         text = {
                             "character": "角色",
                             "decoration": "装饰",

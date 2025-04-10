@@ -236,7 +236,7 @@ class MajsoulPlugin(Star):
                     Plain(f"雀魂猜牌游戏开始！\n"
                           f"场风: {game_info['round_wind']} 自风: {game_info['player_wind']} "
                           f"番: {game_info['han']} 符: {game_info['fu']}\n"
-                          f"请输入您的猜测，格式如: 123456789m123p1s"),
+                          f"请输入您的猜测，格式如: 雀魂猜牌 123456789m123p11s"),
                     Image(file=image_path)
                 ]
                 yield message_result

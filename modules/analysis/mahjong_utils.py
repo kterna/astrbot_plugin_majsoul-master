@@ -2,6 +2,8 @@ from typing import Dict, List, Optional, Tuple, Union
 from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.shanten import Shanten
 from mahjong.tile import TilesConverter
+from mahjong.hand_calculating.hand_config import HandConfig
+from mahjong.constants import EAST, SOUTH, WEST, NORTH
 
 # 役种中文映射
 YAKU_NAME_MAP = {
@@ -345,14 +347,40 @@ class MahjongHelper:
             return UkeireResult(success=False, error=str(e))
     
     def estimate_hand_value(self, tiles_man='', tiles_pin='', tiles_sou='', tiles_honors='',
-                           win_tile_type='', win_tile_value='') -> HandValueResult:
-        """估算门清荣和手牌价值"""
+                           win_tile_type='', win_tile_value='', round_wind=1, player_wind=1) -> HandValueResult:
+        """估算门清荣和手牌价值
+        Args:
+            tiles_man: 万子
+            tiles_pin: 筒子
+            tiles_sou: 索子
+            tiles_honors: 字牌
+            win_tile_type: 和牌类型
+            win_tile_value: 和牌值
+            round_wind: 场风，1=东，2=南
+            player_wind: 自风，1=东，2=南，3=西，4=北
+        """
         try:
             tiles = self.convert_tiles(tiles_man, tiles_pin, tiles_sou, tiles_honors)
             win_tile_dict = {win_tile_type: win_tile_value}
             win_tile = self.convert_tiles(**win_tile_dict)[0]
             
-            result = self.calculator.estimate_hand_value(tiles, win_tile)
+            # 创建HandConfig对象并设置场风和自风
+            config = HandConfig()
+            if round_wind == 1:
+                config.round_wind = EAST
+            elif round_wind == 2:
+                config.round_wind = SOUTH
+                
+            if player_wind == 1:
+                config.player_wind = EAST
+            elif player_wind == 2:
+                config.player_wind = SOUTH
+            elif player_wind == 3:
+                config.player_wind = WEST
+            elif player_wind == 4:
+                config.player_wind = NORTH
+                
+            result = self.calculator.estimate_hand_value(tiles, win_tile, config=config)
             
             if result.error:
                 return HandValueResult(success=False, error=result.error)
@@ -409,8 +437,13 @@ class PaiAnalyzer:
         
         return HandComponents(man=man, pin=pin, sou=sou, honors=honors)
     
-    def analyze_hand(self, hand_str: str) -> HandAnalysisResult:
-        """分析手牌，返回结构化的分析结果"""
+    def analyze_hand(self, hand_str: str, round_wind: int = 1, player_wind: int = 1) -> HandAnalysisResult:
+        """分析手牌，返回结构化的分析结果
+        Args:
+            hand_str: 手牌字符串
+            round_wind: 场风，1=东，2=南
+            player_wind: 自风，1=东，2=南，3=西，4=北
+        """
         try:
             # 解析手牌
             hand_components = self.parse_hand(hand_str)
@@ -461,7 +494,9 @@ class PaiAnalyzer:
                         tiles_sou=hand_components.sou, 
                         tiles_honors=hand_components.honors,
                         win_tile_type=win_tile_type, 
-                        win_tile_value=win_tile_value
+                        win_tile_value=win_tile_value,
+                        round_wind=round_wind,
+                        player_wind=player_wind
                     )
                     
                     result.hand_value = hand_value

@@ -140,7 +140,7 @@ def generate_valid_hands(limit: int, output_file: str) -> None:
             round_wind = random.randint(1, 2)
             player_wind = random.randint(1, 4)
             
-            analysis_result = pai_analyzer.analyze_hand(full_hand_str)
+            analysis_result = pai_analyzer.analyze_hand(full_hand_str, round_wind=round_wind, player_wind=player_wind)
             
             # 5. 检查是否有役种并成功和牌
             if (analysis_result.success and 

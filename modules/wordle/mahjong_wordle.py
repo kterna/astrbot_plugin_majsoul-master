@@ -39,9 +39,9 @@ class MahjongWordle:
             游戏键值
         """
         if group_id:
-            return f"group_{group_id}_{user_id}"
+            return f"group_{group_id}"  # 群聊中所有用户共享同一个游戏
         else:
-            return f"private_{user_id}"
+            return f"private_{user_id}"  # 私聊中用户独立游戏
     
     def start_game(self, user_id: str, group_id: Optional[str] = None) -> Dict[str, Any]:
         """开始新游戏
@@ -53,6 +53,13 @@ class MahjongWordle:
         Returns:
             游戏状态
         """
+        # 获取游戏键值
+        game_key = self._get_game_key(user_id, group_id)
+        
+        # 检查是否已有游戏
+        if game_key in self.current_games:
+            raise Exception("该群聊已有进行中的游戏")
+        
         # 获取随机牌谱
         hand_data = self.data_loader.get_random_hand()
         if not hand_data:
@@ -69,11 +76,12 @@ class MahjongWordle:
             "guesses": [],
             "max_attempts": 6,
             "completed": False,
-            "win": False
+            "win": False,
+            "started_by": user_id,  # 记录游戏发起者
+            "last_guess_by": None   # 记录最后一次猜测的用户
         }
         
         # 保存游戏状态
-        game_key = self._get_game_key(user_id, group_id)
         self.current_games[game_key] = game_state
         
         return game_state
@@ -176,9 +184,11 @@ class MahjongWordle:
         # 记录猜测
         guess_record = {
             "tiles": result_tiles,
-            "correct": all(tile["status"] == "correct" for tile in result_tiles)
+            "correct": all(tile["status"] == "correct" for tile in result_tiles),
+            "user_id": user_id  # 记录猜测的用户
         }
         game_state["guesses"].append(guess_record)
+        game_state["last_guess_by"] = user_id  # 更新最后一次猜测的用户
         
         # 检查是否完成
         if guess_record["correct"] or len(game_state["guesses"]) >= game_state["max_attempts"]:
@@ -254,5 +264,7 @@ class MahjongWordle:
             "player_wind": hand_data.get("player_wind_str", ""),
             "han": hand_data.get("han", 0),
             "fu": hand_data.get("fu", 0),
-            "yaku": [y.get("chinese_name", y.get("name", "")) for y in hand_data.get("yaku", [])]
+            "yaku": [y.get("chinese_name", y.get("name", "")) for y in hand_data.get("yaku", [])],
+            "started_by": game_state["started_by"],
+            "last_guess_by": game_state["last_guess_by"]
         } 

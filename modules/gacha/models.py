@@ -14,7 +14,6 @@ class Card:
     type: str    # "character", "decoration", "gift", "jades"
     pool: str    # 所属卡池名称
     pool_type: str = "standard"  # 卡池类型：standard/contract/limited/collab
-    _image_path_cache: Dict[str, Optional[str]] = field(default_factory=dict)
 
     def _find_image_by_pattern(self, char_dir: str, pattern: str) -> Optional[str]:
         """使用正则表达式查找匹配的图片
@@ -50,11 +49,6 @@ class Card:
 
     def get_image_path(self, resources_dir: str) -> Optional[str]:
         """获取卡片图片路径"""
-        cache_key = f"{self.name}_{self.type}_{self.pool}_{self.pool_type}_{resources_dir}"
-        
-        if self.pool_type != "limited" and cache_key in self._image_path_cache:
-            return self._image_path_cache[cache_key]
-            
         try:
             if self.type == "character":
                 sub_dir = "person"
@@ -64,7 +58,6 @@ class Card:
                     if os.path.exists(default_dir) and os.path.isdir(default_dir):
                         char_dir = default_dir
                     else:
-                        self._image_path_cache[cache_key] = None
                         return None
 
                 keywords = {
@@ -89,10 +82,7 @@ class Card:
                     else:
                         selected_image = matching_images[0]
                     
-                    image_path = os.path.join(char_dir, selected_image)
-                    if self.pool_type != "limited":
-                        self._image_path_cache[cache_key] = image_path
-                    return image_path
+                    return os.path.join(char_dir, selected_image)
                 
                 if keyword != "初始形象":
                     for file in os.listdir(char_dir):
@@ -100,10 +90,8 @@ class Card:
                             continue
                         if "初始形象" in file:
                             image_path = os.path.join(char_dir, file)
-                            self._image_path_cache[cache_key] = image_path
                             return image_path
                 
-                self._image_path_cache[cache_key] = None
                 return None
                 
             else:
@@ -113,21 +101,17 @@ class Card:
                 for ext in ['.jpg', '.png']:
                     path = base_path + ext
                     if os.path.exists(path):
-                        self._image_path_cache[cache_key] = path
                         return path
                 
                 default_path = os.path.join(resources_dir, sub_dir, "默认" + self.type)
                 for ext in ['.jpg', '.png']:
                     path = default_path + ext
                     if os.path.exists(path):
-                        self._image_path_cache[cache_key] = path
                         return path
                 
-                self._image_path_cache[cache_key] = None
                 return None
                 
         except Exception:
-            self._image_path_cache[cache_key] = None
             return None
 
 @dataclass
