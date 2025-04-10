@@ -54,6 +54,10 @@
   - 可以分析向听数、进张、役种和点数等信息
   - 支持特殊和牌形式如七对子、国士无双等的识别
 
+### 雀魂wordle功能
+- `雀魂猜牌`：开始雀魂wordle
+![猜牌](image/wordle.png)
+
 ### 管理功能
 
 - `雀魂开`：启用雀魂插件
@@ -78,19 +82,10 @@
   - `default_mode`：默认游戏模式（four/three）
   - `default_level`：默认房间等级（all/bronze/silver/gold/jade/throne）
 
-## 依赖项
-
-插件依赖以下Python库：
-
-- requests
-- pillow
-- numpy
-- aiohttp
-- beautifulsoup4
-- pyyaml
-- python-dateutil
-
 ## 更新日志
+
+### v1.4.0
+- 更新了日麻wordle游戏
 
 ### v1.3.0
 - 完善了牌理计算牌效
@@ -109,15 +104,3 @@
 - 初始版本发布
 - 实现基本战绩查询
 - 实现模拟抽卡功能 
-
-## TODO
-- 完善抽卡池 Done
-- 牌理计算牌效 Done
-
-## 插件结构
-
-插件由以下几个模块组成：
-
-- `modules/query`：雀魂战绩查询相关功能
-- `modules/gacha`：雀魂抽卡模拟功能
-- `modules/analysis`：麻将牌理分析功能

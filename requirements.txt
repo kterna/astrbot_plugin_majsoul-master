@@ -1,2 +1,3 @@
 requests>=2.25.1
 mahjong>=1.2.0
+cairosvg>=2.5.2

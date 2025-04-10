@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 class MajsoulFormatter:
     """雀魂数据格式化工具类"""
@@ -213,3 +213,161 @@ class MajsoulFormatter:
             return "王座之间"
         else:
             return "" 
+
+class MahjongFormatter:
+    """麻将分析结果格式化工具类"""
+    
+    @staticmethod
+    def format_hand_analysis(analysis_result: Dict) -> str:
+        """格式化完整的手牌分析结果
+        
+        Args:
+            analysis_result: 手牌分析结果字典
+        
+        Returns:
+            格式化后的分析结果文本
+        """
+        if not analysis_result.get("success", True):
+            return f"分析失败: {analysis_result.get('error', '未知错误')}"
+        
+        hand_str = analysis_result.get("hand_str", "")
+        total_tiles = analysis_result.get("total_tiles", 0)
+        
+        result = [f"手牌: {hand_str}", f"手牌数: {total_tiles}张"]
+        
+        # 向听数信息
+        shanten = analysis_result.get("shanten", {})
+        if shanten:
+            shanten_num = shanten.get("shanten", 0)
+            if shanten_num == -1:
+                result.append("和牌")
+            elif shanten_num == 0:
+                result.append("听牌")
+            else:
+                result.append(f"向听数: {shanten_num}")
+        
+        # 和牌信息
+        hand_value = analysis_result.get("hand_value", {})
+        if hand_value and hand_value.get("success", False):
+            result.append(MahjongFormatter.format_hand_value(hand_value))
+        
+        # 打牌建议
+        ukeire = analysis_result.get("ukeire", {})
+        if ukeire and ukeire.get("success", False):
+            result.append(MahjongFormatter.format_ukeire(ukeire))
+        
+        # 听牌/待摸分析
+        waiting_tiles = analysis_result.get("waiting_tiles", [])
+        if waiting_tiles and total_tiles == 13:
+            if shanten.get("shanten", -1) == 0:
+                result.append(MahjongFormatter.format_waiting_tiles(waiting_tiles, "听牌"))
+            else:
+                result.append(MahjongFormatter.format_waiting_tiles(waiting_tiles, "进张"))
+        
+        return "\n".join(result)
+    
+    @staticmethod
+    def format_hand_value(hand_value: Dict) -> str:
+        """格式化和牌分析结果
+        
+        Args:
+            hand_value: 和牌分析结果字典
+        
+        Returns:
+            格式化后的和牌分析文本
+        """
+        if not hand_value.get("success", True):
+            return "无役，不能和牌"
+        
+        han = hand_value.get("han", 0)
+        fu = hand_value.get("fu", 0)
+        cost = hand_value.get("cost", {}).get("main", 0)
+        is_yakuman = hand_value.get("is_yakuman", False)
+        
+        result = ["和牌分析:"]
+        if is_yakuman:
+            result.append("役满")
+        else:
+            result.append(f"番数: {han}, 符数: {fu}")
+        
+        result.append(f"点数: {cost}")
+        
+        # 添加役种信息
+        yaku_list = hand_value.get("yaku", [])
+        if yaku_list:
+            result.append("役种:")
+            for yaku in yaku_list:
+                han_display = f"{yaku.get('han', 0)}番"
+                result.append(f"- {yaku.get('chinese_name', '未知')} ({han_display})")
+        
+        return "\n".join(result)
+    
+    @staticmethod
+    def format_ukeire(ukeire: Dict) -> str:
+        """格式化进张分析结果
+        
+        Args:
+            ukeire: 进张分析结果字典
+        
+        Returns:
+            格式化后的进张分析文本
+        """
+        if not ukeire.get("success", True):
+            return "进张分析失败"
+        
+        result = ["打牌建议:"]
+        
+        options = ukeire.get("options", [])
+        for i, option in enumerate(options, 1):
+            discard = option.get("tile_to_discard", "")
+            ukeire_count = option.get("ukeire", 0)
+            waiting_str = option.get("waiting_tiles_str", "")
+            
+            result.append(f"{i}. 打{discard}: 进张数={ukeire_count}")
+            result.append(f"   待张：{waiting_str}")
+        
+        return "\n".join(result)
+    
+    @staticmethod
+    def format_waiting_tiles(waiting_tiles: List[Dict], tile_type: str = "听牌") -> str:
+        """格式化待张信息
+        
+        Args:
+            waiting_tiles: 待张列表
+            tile_type: 类型描述，如"听牌"或"进张"
+        
+        Returns:
+            格式化后的待张文本
+        """
+        if not waiting_tiles:
+            return f"无{tile_type}"
+        
+        # 计算总数
+        total_count = sum(tile.get("count", 0) for tile in waiting_tiles)
+        
+        result = []
+        if tile_type == "听牌":
+            result.append(f"听牌！共{total_count}张铳牌")
+            result.append(f"听牌张：{MahjongFormatter._format_tile_list(waiting_tiles)}")
+        else:
+            result.append(f"进张数：{total_count}张")
+            result.append(f"进张：{MahjongFormatter._format_tile_list(waiting_tiles)}")
+        
+        return "\n".join(result)
+    
+    @staticmethod
+    def _format_tile_list(tiles: List[Dict]) -> str:
+        """格式化牌列表
+        
+        Args:
+            tiles: 牌列表
+        
+        Returns:
+            格式化后的牌列表文本
+        """
+        tiles_str = []
+        for tile in tiles:
+            tile_str = tile.get("tile_str", "")
+            count = tile.get("count", 0)
+            tiles_str.append(f"{tile_str}:{count}张")
+        return "、".join(tiles_str) 

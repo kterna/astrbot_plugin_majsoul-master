@@ -1,0 +1,1767 @@
+[
+  {
+    "hand": "234p22233s333666z",
+    "win_tile": "4p",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 3,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "45677789m667788s",
+    "win_tile": "7s",
+    "round_wind_str": "东",
+    "player_wind_str": "北",
+    "han": 2,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      },
+      {
+        "name": "Iipeiko",
+        "han": 1,
+        "chinese_name": "一杯口"
+      }
+    ]
+  },
+  {
+    "hand": "456m11789p678s555z",
+    "win_tile": "1p",
+    "round_wind_str": "东",
+    "player_wind_str": "东",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      }
+    ]
+  },
+  {
+    "hand": "44477789m678p777z",
+    "win_tile": "7z",
+    "round_wind_str": "东",
+    "player_wind_str": "东",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      }
+    ]
+  },
+  {
+    "hand": "11222233345m123p",
+    "win_tile": "2m",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 2,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      },
+      {
+        "name": "Iipeiko",
+        "han": 1,
+        "chinese_name": "一杯口"
+      }
+    ]
+  },
+  {
+    "hand": "567789m123p22s666z",
+    "win_tile": "8m",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "567m44p888s333555z",
+    "win_tile": "8s",
+    "round_wind_str": "东",
+    "player_wind_str": "东",
+    "han": 3,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "123678m333s44666z",
+    "win_tile": "3s",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "345m22456888p888s",
+    "win_tile": "2p",
+    "round_wind_str": "南",
+    "player_wind_str": "北",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Tanyao",
+        "han": 1,
+        "chinese_name": "断幺九"
+      }
+    ]
+  },
+  {
+    "hand": "111567p666s11444z",
+    "win_tile": "4z",
+    "round_wind_str": "南",
+    "player_wind_str": "西",
+    "han": 2,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "55556667778p555z",
+    "win_tile": "5p",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 5,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Iipeiko",
+        "han": 1,
+        "chinese_name": "一杯口"
+      },
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      },
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "33345m345p567789s",
+    "win_tile": "3m",
+    "round_wind_str": "东",
+    "player_wind_str": "北",
+    "han": 1,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      }
+    ]
+  },
+  {
+    "hand": "567m567888p33678s",
+    "win_tile": "7m",
+    "round_wind_str": "南",
+    "player_wind_str": "北",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Tanyao",
+        "han": 1,
+        "chinese_name": "断幺九"
+      }
+    ]
+  },
+  {
+    "hand": "123456m66667788s",
+    "win_tile": "4m",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 2,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      },
+      {
+        "name": "Iipeiko",
+        "han": 1,
+        "chinese_name": "一杯口"
+      }
+    ]
+  },
+  {
+    "hand": "345m777p22999s333z",
+    "win_tile": "9s",
+    "round_wind_str": "南",
+    "player_wind_str": "西",
+    "han": 2,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "12388p112223334s",
+    "win_tile": "4s",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Iipeiko",
+        "han": 1,
+        "chinese_name": "一杯口"
+      }
+    ]
+  },
+  {
+    "hand": "33m456p445566s444z",
+    "win_tile": "6p",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Iipeiko",
+        "han": 1,
+        "chinese_name": "一杯口"
+      }
+    ]
+  },
+  {
+    "hand": "567m33777s333555z",
+    "win_tile": "5z",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 3,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "789m11345567s666z",
+    "win_tile": "9m",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "44888m678p233445s",
+    "win_tile": "7p",
+    "round_wind_str": "东",
+    "player_wind_str": "东",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Tanyao",
+        "han": 1,
+        "chinese_name": "断幺九"
+      }
+    ]
+  },
+  {
+    "hand": "456888m22344556s",
+    "win_tile": "8m",
+    "round_wind_str": "东",
+    "player_wind_str": "北",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Tanyao",
+        "han": 1,
+        "chinese_name": "断幺九"
+      }
+    ]
+  },
+  {
+    "hand": "678p555s11666777z",
+    "win_tile": "8p",
+    "round_wind_str": "东",
+    "player_wind_str": "南",
+    "han": 4,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      },
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "123m666p22999s555z",
+    "win_tile": "5z",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 3,
+    "fu": 60,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "11133344777m555z",
+    "win_tile": "7m",
+    "round_wind_str": "东",
+    "player_wind_str": "南",
+    "han": 8,
+    "fu": 60,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      },
+      {
+        "name": "Toitoi",
+        "han": 2,
+        "chinese_name": "对对和"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      },
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "33445555678m777z",
+    "win_tile": "8m",
+    "round_wind_str": "南",
+    "player_wind_str": "西",
+    "han": 5,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Iipeiko",
+        "han": 1,
+        "chinese_name": "一杯口"
+      },
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      },
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "234m33s111222777z",
+    "win_tile": "2m",
+    "round_wind_str": "南",
+    "player_wind_str": "北",
+    "han": 3,
+    "fu": 60,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "222999m33444777z",
+    "win_tile": "9m",
+    "round_wind_str": "东",
+    "player_wind_str": "北",
+    "han": 8,
+    "fu": 60,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      },
+      {
+        "name": "Toitoi",
+        "han": 2,
+        "chinese_name": "对对和"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      },
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "567789s11666777z",
+    "win_tile": "1z",
+    "round_wind_str": "南",
+    "player_wind_str": "北",
+    "han": 5,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      },
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      },
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "567789m33s333666z",
+    "win_tile": "6z",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "345m234789p234s44z",
+    "win_tile": "4z",
+    "round_wind_str": "南",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      }
+    ]
+  },
+  {
+    "hand": "345678m55p333777z",
+    "win_tile": "6m",
+    "round_wind_str": "东",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      }
+    ]
+  },
+  {
+    "hand": "456789m44p234789s",
+    "win_tile": "4s",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 1,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      }
+    ]
+  },
+  {
+    "hand": "233445m456s44555z",
+    "win_tile": "2m",
+    "round_wind_str": "南",
+    "player_wind_str": "北",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      }
+    ]
+  },
+  {
+    "hand": "345678p234s11666z",
+    "win_tile": "8p",
+    "round_wind_str": "东",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "456789m12334566s",
+    "win_tile": "3s",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      }
+    ]
+  },
+  {
+    "hand": "345678p56777s666z",
+    "win_tile": "6s",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "22p223344567s444z",
+    "win_tile": "4s",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Iipeiko",
+        "han": 1,
+        "chinese_name": "一杯口"
+      }
+    ]
+  },
+  {
+    "hand": "234p34445s666777z",
+    "win_tile": "3p",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 2,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      },
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      }
+    ]
+  },
+  {
+    "hand": "23344588p333555z",
+    "win_tile": "4p",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 4,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      },
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "888m88p456s111666z",
+    "win_tile": "5s",
+    "round_wind_str": "东",
+    "player_wind_str": "东",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "123456789s22244z",
+    "win_tile": "7s",
+    "round_wind_str": "东",
+    "player_wind_str": "东",
+    "han": 5,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Ittsu",
+        "han": 2,
+        "chinese_name": "一气通贯"
+      },
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "678m34599p222s777z",
+    "win_tile": "8m",
+    "round_wind_str": "东",
+    "player_wind_str": "北",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      }
+    ]
+  },
+  {
+    "hand": "456m123456p12344s",
+    "win_tile": "1p",
+    "round_wind_str": "南",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      }
+    ]
+  },
+  {
+    "hand": "111444m23477s666z",
+    "win_tile": "3s",
+    "round_wind_str": "南",
+    "player_wind_str": "北",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "88m789p111666777z",
+    "win_tile": "7z",
+    "round_wind_str": "东",
+    "player_wind_str": "东",
+    "han": 4,
+    "fu": 60,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      },
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "234678m11144666z",
+    "win_tile": "4z",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 4,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      },
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "56667p777s111333z",
+    "win_tile": "6p",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 2,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "123m12355s222555z",
+    "win_tile": "5z",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      }
+    ]
+  },
+  {
+    "hand": "45666m333555777z",
+    "win_tile": "7z",
+    "round_wind_str": "南",
+    "player_wind_str": "西",
+    "han": 7,
+    "fu": 60,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      },
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      },
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "444m88p444s111444z",
+    "win_tile": "4m",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 4,
+    "fu": 60,
+    "yaku": [
+      {
+        "name": "Toitoi",
+        "han": 2,
+        "chinese_name": "对对和"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "123678p55567s666z",
+    "win_tile": "5s",
+    "round_wind_str": "南",
+    "player_wind_str": "北",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "789m22345678p666z",
+    "win_tile": "7p",
+    "round_wind_str": "东",
+    "player_wind_str": "北",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "456m33678p555666z",
+    "win_tile": "6m",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 2,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      },
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "234456777m88p666z",
+    "win_tile": "7m",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "11m333789p333s444z",
+    "win_tile": "4z",
+    "round_wind_str": "南",
+    "player_wind_str": "西",
+    "han": 2,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "456789m11166777z",
+    "win_tile": "1z",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 4,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      },
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "555m123567p44777z",
+    "win_tile": "5m",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      }
+    ]
+  },
+  {
+    "hand": "222345p33s222555z",
+    "win_tile": "2p",
+    "round_wind_str": "东",
+    "player_wind_str": "南",
+    "han": 3,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "345m45667888p222s",
+    "win_tile": "4p",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Tanyao",
+        "han": 1,
+        "chinese_name": "断幺九"
+      }
+    ]
+  },
+  {
+    "hand": "222m44p344556678s",
+    "win_tile": "2m",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Tanyao",
+        "han": 1,
+        "chinese_name": "断幺九"
+      }
+    ]
+  },
+  {
+    "hand": "456789m78999p567s",
+    "win_tile": "8p",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 1,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      }
+    ]
+  },
+  {
+    "hand": "567m345567p12388s",
+    "win_tile": "5p",
+    "round_wind_str": "南",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      }
+    ]
+  },
+  {
+    "hand": "567p23444456s555z",
+    "win_tile": "4s",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      }
+    ]
+  },
+  {
+    "hand": "34555p456s333666z",
+    "win_tile": "6s",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "45556999p222444z",
+    "win_tile": "4p",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 3,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "666789m345p44777z",
+    "win_tile": "7m",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      }
+    ]
+  },
+  {
+    "hand": "11566778m123789p",
+    "win_tile": "7m",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      }
+    ]
+  },
+  {
+    "hand": "678m999s11122777z",
+    "win_tile": "7z",
+    "round_wind_str": "东",
+    "player_wind_str": "南",
+    "han": 3,
+    "fu": 60,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "12223m333p111222z",
+    "win_tile": "3m",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 2,
+    "fu": 60,
+    "yaku": [
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "44678m111p555666z",
+    "win_tile": "6m",
+    "round_wind_str": "东",
+    "player_wind_str": "东",
+    "han": 4,
+    "fu": 60,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      },
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "234m123567s55666z",
+    "win_tile": "3m",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "55678m456789s777z",
+    "win_tile": "8s",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      }
+    ]
+  },
+  {
+    "hand": "345m56777p567s666z",
+    "win_tile": "3m",
+    "round_wind_str": "东",
+    "player_wind_str": "北",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "555m555789p33s777z",
+    "win_tile": "5p",
+    "round_wind_str": "东",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      }
+    ]
+  },
+  {
+    "hand": "567p333s11122255z",
+    "win_tile": "2z",
+    "round_wind_str": "东",
+    "player_wind_str": "东",
+    "han": 2,
+    "fu": 60,
+    "yaku": [
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "789m344555667p66s",
+    "win_tile": "4p",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 1,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      }
+    ]
+  },
+  {
+    "hand": "234567789p33377z",
+    "win_tile": "7p",
+    "round_wind_str": "南",
+    "player_wind_str": "西",
+    "han": 3,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "789p45688s555666z",
+    "win_tile": "8p",
+    "round_wind_str": "南",
+    "player_wind_str": "西",
+    "han": 2,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      },
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "123789m567p12388s",
+    "win_tile": "9m",
+    "round_wind_str": "东",
+    "player_wind_str": "北",
+    "han": 1,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      }
+    ]
+  },
+  {
+    "hand": "22444456p222777z",
+    "win_tile": "2z",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 6,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      },
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "23455m567p555777z",
+    "win_tile": "4m",
+    "round_wind_str": "南",
+    "player_wind_str": "北",
+    "han": 2,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      },
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      }
+    ]
+  },
+  {
+    "hand": "99m222678p111222z",
+    "win_tile": "2z",
+    "round_wind_str": "东",
+    "player_wind_str": "南",
+    "han": 2,
+    "fu": 60,
+    "yaku": [
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "123345m123p12344s",
+    "win_tile": "4s",
+    "round_wind_str": "东",
+    "player_wind_str": "北",
+    "han": 3,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      },
+      {
+        "name": "Sanshoku Doujun",
+        "han": 2,
+        "chinese_name": "Sanshoku Doujun"
+      }
+    ]
+  },
+  {
+    "hand": "334455789m11789p",
+    "win_tile": "1p",
+    "round_wind_str": "东",
+    "player_wind_str": "东",
+    "han": 2,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      },
+      {
+        "name": "Iipeiko",
+        "han": 1,
+        "chinese_name": "一杯口"
+      }
+    ]
+  },
+  {
+    "hand": "45667899p111777z",
+    "win_tile": "4p",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 4,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      },
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "678m678p999s11777z",
+    "win_tile": "9s",
+    "round_wind_str": "东",
+    "player_wind_str": "东",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      }
+    ]
+  },
+  {
+    "hand": "45566799m778899s",
+    "win_tile": "9m",
+    "round_wind_str": "东",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Iipeiko",
+        "han": 1,
+        "chinese_name": "一杯口"
+      }
+    ]
+  },
+  {
+    "hand": "667788m567p34555s",
+    "win_tile": "5p",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 3,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      },
+      {
+        "name": "Tanyao",
+        "han": 1,
+        "chinese_name": "断幺九"
+      },
+      {
+        "name": "Iipeiko",
+        "han": 1,
+        "chinese_name": "一杯口"
+      }
+    ]
+  },
+  {
+    "hand": "44456666m333s666z",
+    "win_tile": "3s",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 3,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "123556667778m22z",
+    "win_tile": "1m",
+    "round_wind_str": "东",
+    "player_wind_str": "东",
+    "han": 5,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      },
+      {
+        "name": "Iipeiko",
+        "han": 1,
+        "chinese_name": "一杯口"
+      },
+      {
+        "name": "Honitsu",
+        "han": 3,
+        "chinese_name": "混一色"
+      }
+    ]
+  },
+  {
+    "hand": "456m345p44455666z",
+    "win_tile": "4z",
+    "round_wind_str": "南",
+    "player_wind_str": "东",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "123m33p111567s555z",
+    "win_tile": "1m",
+    "round_wind_str": "东",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      }
+    ]
+  },
+  {
+    "hand": "567m33456678p567s",
+    "win_tile": "6p",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 2,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      },
+      {
+        "name": "Tanyao",
+        "han": 1,
+        "chinese_name": "断幺九"
+      }
+    ]
+  },
+  {
+    "hand": "44466p333566667s",
+    "win_tile": "5s",
+    "round_wind_str": "东",
+    "player_wind_str": "西",
+    "han": 3,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Tanyao",
+        "han": 1,
+        "chinese_name": "断幺九"
+      },
+      {
+        "name": "San Ankou",
+        "han": 2,
+        "chinese_name": "San Ankou"
+      }
+    ]
+  },
+  {
+    "hand": "345m555p45699s666z",
+    "win_tile": "5p",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (hatsu)",
+        "han": 1,
+        "chinese_name": "Yakuhai (hatsu)"
+      }
+    ]
+  },
+  {
+    "hand": "344445m234s55577z",
+    "win_tile": "7z",
+    "round_wind_str": "东",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      }
+    ]
+  },
+  {
+    "hand": "234m223344p99s555z",
+    "win_tile": "9s",
+    "round_wind_str": "南",
+    "player_wind_str": "西",
+    "han": 2,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Iipeiko",
+        "han": 1,
+        "chinese_name": "一杯口"
+      },
+      {
+        "name": "Yakuhai (haku)",
+        "han": 1,
+        "chinese_name": "Yakuhai (haku)"
+      }
+    ]
+  },
+  {
+    "hand": "123456m678p123s33z",
+    "win_tile": "4m",
+    "round_wind_str": "东",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 30,
+    "yaku": [
+      {
+        "name": "Pinfu",
+        "han": 1,
+        "chinese_name": "平和"
+      }
+    ]
+  },
+  {
+    "hand": "234456m11999s777z",
+    "win_tile": "9s",
+    "round_wind_str": "南",
+    "player_wind_str": "南",
+    "han": 1,
+    "fu": 50,
+    "yaku": [
+      {
+        "name": "Yakuhai (chun)",
+        "han": 1,
+        "chinese_name": "Yakuhai (chun)"
+      }
+    ]
+  },
+  {
+    "hand": "55577m333566778p",
+    "win_tile": "5m",
+    "round_wind_str": "东",
+    "player_wind_str": "北",
+    "han": 1,
+    "fu": 40,
+    "yaku": [
+      {
+        "name": "Tanyao",
+        "han": 1,
+        "chinese_name": "断幺九"
+      }
+    ]
+  }
+]

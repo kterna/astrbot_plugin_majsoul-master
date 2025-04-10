@@ -4,10 +4,12 @@ from astrbot.api.message_components import Plain, Image
 from .modules.query.extended_query import MajsoulQuery
 from .modules.gacha.gacha import GachaSystem
 from .modules.analysis.mahjong_utils import PaiAnalyzer
+from .modules.wordle.mahjong_wordle import MahjongWordle
+from .utils.message_formatter import MahjongFormatter
 import os
 import re
 
-@register("astrbot_plugin_majsoul", "AstrBot Team", "雀魂多功能插件", "1.3.0")
+@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.4.0")
 class MajsoulPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -25,10 +27,13 @@ class MajsoulPlugin(Star):
         self.query = MajsoulQuery(self.api_url)
         self.gacha = GachaSystem(self.data_dir)
         self.pai_analyzer = PaiAnalyzer()
+        
+        # 初始化麻将Wordle游戏
+        self.wordle = MahjongWordle(os.path.dirname(__file__))
 
     def ensure_directories(self):
         """确保必要的目录存在"""
-        directories = ['data', 'logs', 'cache']
+        directories = ['data', 'logs', 'cache', 'cache/wordle']
         for dir_name in directories:
             dir_path = os.path.join(os.path.dirname(__file__), dir_name)
             os.makedirs(dir_path, exist_ok=True)
@@ -77,6 +82,10 @@ class MajsoulPlugin(Star):
 
 【牌理分析】
 - 牌理 <手牌>：分析麻将手牌（如：牌理 1112345678999m）
+
+【雀魂猜牌游戏】
+- 雀魂猜牌：开始新的麻将猜牌游戏
+- 雀魂猜牌 <手牌>：猜测当前游戏的手牌
 """
         yield event.plain_result(help_text)
 
@@ -193,8 +202,80 @@ class MajsoulPlugin(Star):
             return
         
         hand_str = parts[1].strip()
+        # 使用新的结构化分析
         analysis_result = self.pai_analyzer.analyze_hand(hand_str)
-        yield event.plain_result(analysis_result)
+        # 使用格式化工具将结构化结果转换为可读文本
+        formatted_result = MahjongFormatter.format_hand_analysis(analysis_result.to_dict())
+        yield event.plain_result(formatted_result)
+
+    @filter.command("雀魂猜牌")
+    async def handle_wordle(self, event: AstrMessageEvent):
+        """处理麻将Wordle游戏命令"""
+        user_id = str(event.message_obj.sender.user_id)
+        # 获取群聊ID，私聊时为None
+        group_id = str(event.message_obj.group_id) if event.message_obj.group_id else None
+        
+        # 提取参数
+        message = event.message_str.strip()
+        args = re.sub(r'^雀魂猜牌\s*', '', message)
+        
+        # 判断是开始游戏还是猜测
+        if args == "雀魂猜牌" or not args:
+            # 开始新游戏
+            try:
+                self.wordle.start_game(user_id, group_id)
+                
+                # 生成初始图像
+                image_path = self.wordle.generate_image(user_id, group_id)
+                
+                # 获取游戏信息
+                game_info = self.wordle.get_game_info(user_id, group_id)
+                
+                message_result = event.make_result()
+                message_result.chain = [
+                    Plain(f"雀魂猜牌游戏开始！\n"
+                          f"场风: {game_info['round_wind']} 自风: {game_info['player_wind']} "
+                          f"番: {game_info['han']} 符: {game_info['fu']}\n"
+                          f"请输入您的猜测，格式如: 123456789m123p1s"),
+                    Image(file=image_path)
+                ]
+                yield message_result
+            except Exception as e:
+                yield event.plain_result(f"开始游戏失败: {str(e)}")
+                
+        else:
+            # 用户猜测
+            try:
+                # 检查猜测
+                result = self.wordle.check_guess(user_id, args, group_id)
+                game_state = result["game_state"]
+                
+                # 生成图像
+                image_path = self.wordle.generate_image(user_id, group_id)
+                
+                # 构造结果消息
+                message_result = event.make_result()
+                
+                if game_state["completed"]:
+                    if game_state["win"]:
+                        result_text = "恭喜你猜对了！\n"
+                    else:
+                        result_text = f"游戏结束，你没有猜对。正确答案是: {game_state['hand_data']['hand']}\n"
+                        
+                    # 显示役种信息
+                    yaku_names = [y.get("chinese_name", y.get("name", "")) for y in game_state["hand_data"].get("yaku", [])]
+                    result_text += f"役种: {', '.join(yaku_names)}\n"
+                else:
+                    result_text = f"你还有{game_state['max_attempts'] - len(game_state['guesses'])}次猜测机会\n"
+                
+                message_result.chain = [
+                    Plain(result_text),
+                    Image(file=image_path)
+                ]
+                yield message_result
+                
+            except Exception as e:
+                yield event.plain_result(f"处理猜测失败: {str(e)}")
 
     @filter.command(["雀魂开", "雀魂关"])
     async def handle_plugin_switch(self, event: AstrMessageEvent):
