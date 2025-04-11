@@ -14,17 +14,19 @@ class MahjongImageGenerator:
         "wrong": (158, 158, 158)   # 灰色 - 不存在
     }
     
-    def __init__(self, resources_dir: str):
+    def __init__(self, resources_dir: str, max_attempts: int = 6):
         """初始化图像生成器
         
         Args:
             resources_dir: 资源目录路径
+            max_attempts: 最大猜测次数，默认为6
         """
         self.resources_dir = resources_dir
         self.tile_size = (60, 80)  # 麻将牌大小
         self.tile_spacing = 5      # 麻将牌间距
         self.margin = 20           # 边距
         self.tile_cache = {}       # 缓存已加载的麻将牌图像
+        self.max_attempts = max_attempts  # 最大猜测次数
         
     def convert_svg_to_pil(self, svg_path: str, width: int, height: int) -> Image.Image:
         """将SVG转换为PIL图像
@@ -131,9 +133,12 @@ class MahjongImageGenerator:
         # 计算最大牌数
         max_tiles = max([len(guess["tiles"]) for guess in guesses]) if guesses else 14
         
+        # 始终使用最大猜测次数创建图像，而不是仅基于当前猜测数量
+        rows_to_display = self.max_attempts
+        
         # 计算图像尺寸
         image_width = self.margin * 2 + max_tiles * (self.tile_size[0] + self.tile_spacing)
-        image_height = self.margin * 2 + len(guesses) * (self.tile_size[1] + self.tile_spacing)
+        image_height = self.margin * 2 + rows_to_display * (self.tile_size[1] + self.tile_spacing)
         
         # 创建基础图像
         image = Image.new('RGB', (image_width, image_height), (240, 240, 240))
@@ -144,34 +149,48 @@ class MahjongImageGenerator:
         info_text = f"场风: {round_wind} 自风: {player_wind} 番: {han} 符: {fu}"
         draw.text((image_width - 240, 10), info_text, fill=(0, 0, 0), font=info_font)
         
-        # 绘制猜测
-        for i, guess in enumerate(guesses):
+        # 绘制所有行（包括空行）
+        for i in range(rows_to_display):
             y = self.margin + i * (self.tile_size[1] + self.tile_spacing)
             
-            for j, tile_info in enumerate(guess["tiles"]):
-                x = self.margin + j * (self.tile_size[0] + self.tile_spacing)
+            # 如果这行有猜测数据
+            if i < len(guesses):
+                guess = guesses[i]
                 
-                # 获取牌图像
-                tile_image = self.get_tile_image(tile_info["code"])
-                
-                # 创建状态背景
-                status = tile_info.get("status", "wrong")
-                status_color = self.STATUS_COLORS.get(status, self.STATUS_COLORS["wrong"])
-                
-                # 创建状态背景
-                status_bg = Image.new('RGBA', tile_image.size, (*status_color, 128))
-                
-                # 合并图像
-                if status != "wrong":  # 不为错误状态时显示状态背景
-                    # 使用带有透明度的状态背景
-                    tile_with_status = Image.alpha_composite(
-                        tile_image.convert('RGBA'), 
-                        Image.new('RGBA', tile_image.size, (*status_color, 80))
+                for j, tile_info in enumerate(guess["tiles"]):
+                    x = self.margin + j * (self.tile_size[0] + self.tile_spacing)
+                    
+                    # 获取牌图像
+                    tile_image = self.get_tile_image(tile_info["code"])
+                    
+                    # 创建状态背景
+                    status = tile_info.get("status", "wrong")
+                    status_color = self.STATUS_COLORS.get(status, self.STATUS_COLORS["wrong"])
+                    
+                    # 创建状态背景
+                    status_bg = Image.new('RGBA', tile_image.size, (*status_color, 128))
+                    
+                    # 合并图像
+                    if status != "wrong":  # 不为错误状态时显示状态背景
+                        # 使用带有透明度的状态背景
+                        tile_with_status = Image.alpha_composite(
+                            tile_image.convert('RGBA'), 
+                            Image.new('RGBA', tile_image.size, (*status_color, 80))
+                        )
+                        image.paste(tile_with_status, (x, y), tile_with_status)
+                    else:
+                        # 直接粘贴原始图像
+                        image.paste(tile_image, (x, y), tile_image)
+            else:
+                # 绘制空行，用于未来的猜测
+                for j in range(max_tiles):
+                    x = self.margin + j * (self.tile_size[0] + self.tile_spacing)
+                    # 创建空白牌位的边框
+                    draw.rectangle(
+                        [(x, y), (x + self.tile_size[0], y + self.tile_size[1])],
+                        outline=(200, 200, 200),
+                        width=1
                     )
-                    image.paste(tile_with_status, (x, y), tile_with_status)
-                else:
-                    # 直接粘贴原始图像
-                    image.paste(tile_image, (x, y), tile_image)
         
         return image
     

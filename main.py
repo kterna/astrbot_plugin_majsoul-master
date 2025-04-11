@@ -5,6 +5,7 @@ from .modules.query.extended_query import MajsoulQuery
 from .modules.gacha.gacha import GachaSystem
 from .modules.analysis.mahjong_utils import PaiAnalyzer
 from .modules.wordle.mahjong_wordle import MahjongWordle
+from .modules.wordle.multi_mahjong_wordle import MultiMahjongWordle
 from .utils.message_formatter import MahjongFormatter
 from .utils.generate_hands import generate_valid_hands
 from .modules.wordle.data_loader import MahjongDataLoader
@@ -12,7 +13,7 @@ from .modules.wordle.data_loader import MahjongDataLoader
 import os
 import re
 
-@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.4.1")
+@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.5.0")
 class MajsoulPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -33,6 +34,9 @@ class MajsoulPlugin(Star):
         
         # 初始化麻将Wordle游戏
         self.wordle = MahjongWordle(os.path.dirname(__file__))
+        
+        # 初始化多牌谱麻将Wordle游戏
+        self.multi_wordle = MultiMahjongWordle(os.path.dirname(__file__))
 
     def ensure_directories(self):
         """确保必要的目录存在"""
@@ -89,6 +93,10 @@ class MajsoulPlugin(Star):
 【雀魂猜牌游戏】
 - 雀魂猜牌：开始新的麻将猜牌游戏
 - 雀魂猜牌 <手牌>：猜测当前游戏的手牌
+
+【雀魂多牌谱猜牌游戏】
+- 雀魂我要猜一万个：开始新的多牌谱麻将猜牌游戏（4个牌谱，10次猜测机会）
+- 雀魂我要猜一万个 <手牌>：猜测当前多牌谱游戏的手牌
 
 【生成题库】
 - 雀魂猜牌题库刷新 <数量>：生成指定数量的新题库
@@ -330,3 +338,81 @@ class MajsoulPlugin(Star):
         await self.set_group_enabled(group_id, enabled)
         
         yield event.plain_result(f"已{'启用' if enabled else '禁用'}雀魂插件")
+
+    @filter.command("雀魂我要猜一万个")
+    async def handle_multi_wordle(self, event: AstrMessageEvent):
+        """处理多牌谱麻将Wordle游戏命令"""
+        user_id = str(event.message_obj.sender.user_id)
+        # 获取群聊ID，私聊时为None
+        group_id = str(event.message_obj.group_id) if event.message_obj.group_id else None
+        
+        # 提取参数
+        message = event.message_str.strip()
+        args = re.sub(r'^雀魂我要猜一万个\s*', '', message)
+        
+        # 判断是开始游戏还是猜测
+        if args == "雀魂我要猜一万个" or not args:
+            # 开始新游戏
+            try:
+                self.multi_wordle.start_games(user_id, group_id)
+                
+                # 生成初始复合图像
+                image_path = self.multi_wordle.generate_composite_image(user_id, group_id)
+                
+                # 获取多牌谱游戏信息
+                game_info = self.multi_wordle.get_multi_game_info(user_id, group_id)
+                game_infos = game_info["game_infos"]
+                
+                # 构建提示文本
+                hints = []
+                for i, info in enumerate(game_infos):
+                    # 为每个牌谱添加序号和信息
+                    hint = f"牌谱{i+1}: 场风: {info.get('round_wind', '?')} 自风: {info.get('player_wind', '?')} 番: {info.get('han', '?')} 符: {info.get('fu', '?')}"
+                    hints.append(hint)
+                
+                hint_text = "\n".join(hints)
+                
+                message_result = event.make_result()
+                message_result.chain = [
+                    Plain(f"雀魂多牌谱猜牌游戏开始！\n"
+                          f"本局游戏包含4个牌谱，共有10次猜测机会。\n"
+                          f"{hint_text}\n"
+                          f"请输入要猜测的手牌："),
+                    Image(file=image_path)
+                ]
+                yield message_result
+                
+            except Exception as e:
+                yield event.plain_result(f"开始游戏失败: {e}")
+        else:
+            # 猜测
+            try:
+                # 检查猜测
+                result = self.multi_wordle.check_guess(user_id, args, group_id)
+                
+                # 生成更新后的图像
+                image_path = self.multi_wordle.generate_composite_image(user_id, group_id)
+                
+                # 构建结果文本
+                win_count = result["win_count"]
+                total_games = result["total_games"]
+                current_attempt = result["current_attempt"]
+                max_attempts = result["max_attempts"]
+                
+                if result["completed"]:
+                    if win_count == total_games:
+                        result_text = f"恭喜你猜对了全部{total_games}个牌谱！总共用了{current_attempt}次猜测。"
+                    else:
+                        result_text = f"游戏结束！你猜对了{win_count}/{total_games}个牌谱，总共用了{current_attempt}次猜测。"
+                else:
+                    result_text = f"当前猜测: {current_attempt}/{max_attempts}\n已猜对: {win_count}/{total_games}个牌谱"
+                
+                message_result = event.make_result()
+                message_result.chain = [
+                    Plain(f"{result_text}"),
+                    Image(file=image_path)
+                ]
+                yield message_result
+                
+            except Exception as e:
+                yield event.plain_result(f"猜测失败: {e}")

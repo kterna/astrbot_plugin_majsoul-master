@@ -7,23 +7,25 @@ from .image_generator import MahjongImageGenerator
 class MahjongWordle:
     """麻将Wordle游戏"""
     
-    def __init__(self, plugin_dir: str):
+    def __init__(self, plugin_dir: str, max_attempts: int = 6):
         """初始化游戏
         
         Args:
             plugin_dir: 插件目录路径
+            max_attempts: 最大猜测次数，默认为6
         """
         self.plugin_dir = plugin_dir
         self.data_dir = os.path.join(plugin_dir, "data")
         self.resources_dir = os.path.join(self.data_dir, "resources", "Regular")
         self.output_dir = os.path.join(plugin_dir, "cache", "wordle")
+        self.max_attempts = max_attempts
         
         # 创建输出目录
         os.makedirs(self.output_dir, exist_ok=True)
         
         # 初始化数据加载器和图像生成器
         self.data_loader = MahjongDataLoader(self.data_dir)
-        self.image_generator = MahjongImageGenerator(self.resources_dir)
+        self.image_generator = MahjongImageGenerator(self.resources_dir, max_attempts=max_attempts)
         
         # 游戏状态
         self.current_games = {}  # 游戏ID -> 游戏状态
@@ -74,7 +76,7 @@ class MahjongWordle:
             "hand_data": hand_data,
             "target_tiles": parsed_hand,
             "guesses": [],
-            "max_attempts": 6,
+            "max_attempts": self.max_attempts,
             "completed": False,
             "win": False,
             "started_by": user_id,  # 记录游戏发起者
