@@ -6,10 +6,12 @@ from .modules.gacha.gacha import GachaSystem
 from .modules.analysis.mahjong_utils import PaiAnalyzer
 from .modules.wordle.mahjong_wordle import MahjongWordle
 from .utils.message_formatter import MahjongFormatter
+from .utils.generate_hands import generate_valid_hands
+
 import os
 import re
 
-@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.4.0")
+@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.4.1")
 class MajsoulPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -46,9 +48,9 @@ class MajsoulPlugin(Star):
 【查询功能】
 （仅支持金之间以上场次）
 基础查询：
-- /雀魂查询 昵称：查询玩家四麻金之间南场战绩
-- /雀魂查询 昵称 金东：查询玩家四麻金之间东场战绩
-- /雀魂查询 昵称 三人金南：查询玩家三麻金之间南场战绩
+- 雀魂查询 昵称：查询玩家四麻金之间南场战绩
+- 雀魂查询 昵称 金东：查询玩家四麻金之间东场战绩
+- 雀魂查询 昵称 三人金南：查询玩家三麻金之间南场战绩
 
 场次说明：
 - 人数：三人/不填（默认四人）
@@ -57,23 +59,23 @@ class MajsoulPlugin(Star):
 
 示例：
 四麻场：
-- /雀魂查询 昵称 金南：金之间南场
-- /雀魂查询 昵称 玉东：玉之间东场
-- /雀魂查询 昵称 王座南：王座之间南场
+- 雀魂查询 昵称 金南：金之间南场
+- 雀魂查询 昵称 玉东：玉之间东场
+- 雀魂查询 昵称 王座南：王座之间南场
 
 三麻场：
-- /雀魂查询 昵称 三人金南：三人金之间南场
-- /雀魂查询 昵称 三人玉东：三人玉之间东场
-- /雀魂查询 昵称 三人王座南：三人王座之间南场
+- 雀魂查询 昵称 三人金南：三人金之间南场
+- 雀魂查询 昵称 三人玉东：三人玉之间东场
+- 雀魂查询 昵称 三人王座南：三人王座之间南场
 
 详细查询：
-- /雀魂详细 昵称：查询玩家四麻金之间南场详细数据
-- /雀魂详细 昵称 金南：查询玩家四麻金之间南场详细数据
+- 雀魂详细 昵称：查询玩家四麻金之间南场详细数据
+- 雀魂详细 昵称 金南：查询玩家四麻金之间南场详细数据
 
 
 牌谱查询：
-- /雀魂牌谱 昵称：查询玩家最近的四麻对局记录
-- /雀魂牌谱 昵称 三人：查询玩家最近的三麻对局记录
+- 雀魂牌谱 昵称：查询玩家最近的四麻对局记录
+- 雀魂牌谱 昵称 三人：查询玩家最近的三麻对局记录
 
 【抽卡功能】
 - 雀魂十连：模拟雀魂十连抽卡
@@ -86,6 +88,15 @@ class MajsoulPlugin(Star):
 【雀魂猜牌游戏】
 - 雀魂猜牌：开始新的麻将猜牌游戏
 - 雀魂猜牌 <手牌>：猜测当前游戏的手牌
+
+【生成题库】
+- 雀魂猜牌题库刷新 <数量>：生成指定数量的新题库
+
+【使用说明】
+万:m
+筒:p
+索:s
+字:z 1234567对应东南西北白发中
 """
         yield event.plain_result(help_text)
 
@@ -277,6 +288,27 @@ class MajsoulPlugin(Star):
             except Exception as e:
                 yield event.plain_result(f"处理猜测失败: {str(e)}")
 
+    @filter.command("雀魂猜牌题库刷新")
+    async def handle_refresh_wordle_library(self, event: AstrMessageEvent):
+        """刷新雀魂猜牌题库"""
+        try:
+            args = re.sub(r'^雀魂猜牌题库刷新\s*', '', event.message_str.strip())
+            number = int(args) if args else 100
+            
+            # 获取插件根目录
+            plugin_root = os.path.dirname(os.path.abspath(__file__))
+            output_dir = os.path.join(plugin_root, "data", "generated_hands")
+            os.makedirs(output_dir, exist_ok=True)
+            output_file = os.path.join(output_dir, "valid_hands.json")
+            
+            result = generate_valid_hands(
+                limit=number,
+                output_file=output_file
+            )
+            yield event.plain_result(result)
+        except Exception as e:
+            yield event.plain_result(f"生成题库失败: {str(e)}")
+            
     @filter.command(["雀魂开", "雀魂关"])
     async def handle_plugin_switch(self, event: AstrMessageEvent):
         """处理插件开关命令"""

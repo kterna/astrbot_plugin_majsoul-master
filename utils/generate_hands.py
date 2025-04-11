@@ -92,7 +92,7 @@ def generate_mentsu_based_hand() -> str:
     
     return hand_str
 
-def generate_valid_hands(limit: int, output_file: str) -> None:
+def generate_valid_hands(limit: int, output_file: str) -> str:
     """生成有效的麻将胡牌并保存到文件"""
     pai_analyzer = PaiAnalyzer()
     valid_hands = []
@@ -130,6 +130,9 @@ def generate_valid_hands(limit: int, output_file: str) -> None:
                 else:
                     # 跳过非数字非花色字符
                     i += 1
+                
+            if not hand_tiles:
+                continue
                 
             win_tile_str = random.choice(hand_tiles)
             
@@ -174,13 +177,19 @@ def generate_valid_hands(limit: int, output_file: str) -> None:
                 else:
                     error_msg = "没有有效役种"
                 
-        
         except Exception as e:
             continue
     
+    if not valid_hands:
+        return "生成失败：未能生成任何有效手牌"
+        
     # 保存到文件
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(valid_hands, f, ensure_ascii=False, indent=2)
+    try:
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(valid_hands, f, ensure_ascii=False, indent=2)
+        return f"生成成功{len(valid_hands)}条"
+    except Exception as e:
+        return f"保存文件失败: {str(e)}"
 
 if __name__ == "__main__":
     output_dir = os.path.join(project_root, "data", "generated_hands")
