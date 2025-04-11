@@ -7,6 +7,7 @@ from .modules.analysis.mahjong_utils import PaiAnalyzer
 from .modules.wordle.mahjong_wordle import MahjongWordle
 from .utils.message_formatter import MahjongFormatter
 from .utils.generate_hands import generate_valid_hands
+from .modules.wordle.data_loader import MahjongDataLoader
 
 import os
 import re
@@ -276,6 +277,11 @@ class MajsoulPlugin(Star):
                     # 显示役种信息
                     yaku_names = [y.get("chinese_name", y.get("name", "")) for y in game_state["hand_data"].get("yaku", [])]
                     result_text += f"役种: {', '.join(yaku_names)}\n"
+                    
+                    # 游戏结束时清理游戏状态
+                    game_key = self.wordle._get_game_key(user_id, group_id)
+                    if game_key in self.wordle.current_games:
+                        del self.wordle.current_games[game_key]
                 else:
                     result_text = f"你还有{game_state['max_attempts'] - len(game_state['guesses'])}次猜测机会\n"
                 
@@ -297,7 +303,8 @@ class MajsoulPlugin(Star):
             
             # 获取插件根目录
             plugin_root = os.path.dirname(os.path.abspath(__file__))
-            output_dir = os.path.join(plugin_root, "data", "generated_hands")
+            data_dir = os.path.join(plugin_root, "data")
+            output_dir = os.path.join(data_dir, "generated_hands")
             os.makedirs(output_dir, exist_ok=True)
             output_file = os.path.join(output_dir, "valid_hands.json")
             
@@ -305,6 +312,10 @@ class MajsoulPlugin(Star):
                 limit=number,
                 output_file=output_file
             )
+
+            # 重新初始化数据加载器，使用正确的数据目录路径
+            self.wordle.data_loader = MahjongDataLoader(data_dir)
+            
             yield event.plain_result(result)
         except Exception as e:
             yield event.plain_result(f"生成题库失败: {str(e)}")

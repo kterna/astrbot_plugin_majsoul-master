@@ -196,12 +196,17 @@ class MahjongWordle:
         if guess_record["correct"] or len(game_state["guesses"]) >= game_state["max_attempts"]:
             game_state["completed"] = True
             game_state["win"] = guess_record["correct"]
-            # 游戏结束时，清理游戏状态
-            del self.current_games[game_key]
+            # 游戏结束时，先返回结果，然后在调用方处理游戏状态
+            return {
+                "guess_record": guess_record,
+                "game_state": game_state,
+                "should_cleanup": True
+            }
         
         return {
             "guess_record": guess_record,
-            "game_state": game_state
+            "game_state": game_state,
+            "should_cleanup": False
         }
     
     def generate_image(self, user_id: str, group_id: Optional[str] = None) -> str:

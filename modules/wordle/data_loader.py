@@ -25,7 +25,10 @@ class MahjongDataLoader:
         try:
             if os.path.exists(self.hands_file):
                 with open(self.hands_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    if not data:
+                        print(f"牌谱数据文件为空: {self.hands_file}")
+                    return data
             else:
                 print(f"找不到牌谱数据文件: {self.hands_file}")
                 return []
