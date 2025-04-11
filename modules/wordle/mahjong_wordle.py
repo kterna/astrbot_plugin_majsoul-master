@@ -142,6 +142,8 @@ class MahjongWordle:
             raise Exception("没有进行中的游戏")
         
         if game_state["completed"]:
+            # 游戏已结束，清理游戏状态
+            del self.current_games[game_key]
             raise Exception("游戏已结束")
         
         # 解析猜测
@@ -194,6 +196,8 @@ class MahjongWordle:
         if guess_record["correct"] or len(game_state["guesses"]) >= game_state["max_attempts"]:
             game_state["completed"] = True
             game_state["win"] = guess_record["correct"]
+            # 游戏结束时，清理游戏状态
+            del self.current_games[game_key]
         
         return {
             "guess_record": guess_record,
