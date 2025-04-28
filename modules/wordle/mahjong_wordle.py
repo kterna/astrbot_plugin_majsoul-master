@@ -3,6 +3,7 @@ import re
 from typing import Dict, List, Tuple, Optional, Any
 from .data_loader import MahjongDataLoader
 from .image_generator import MahjongImageGenerator
+from ..analysis.mahjong_utils import MahjongHelper
 
 class MahjongWordle:
     """麻将Wordle游戏"""
@@ -80,7 +81,6 @@ class MahjongWordle:
             "completed": False,
             "win": False,
             "started_by": user_id,  # 记录游戏发起者
-            "last_guess_by": None   # 记录最后一次猜测的用户
         }
         
         # 保存游戏状态
@@ -160,6 +160,48 @@ class MahjongWordle:
         # 检查猜测长度
         if len(guess_tiles) != len(target_tiles):
             raise Exception(f"猜测的牌数不正确，应为{len(target_tiles)}张")
+            
+        # 检查是否是胡牌形状（向听数为0）
+        helper = MahjongHelper()
+        
+        # 将猜测的牌转换为手牌字符串格式
+        man = pin = sou = honors = ""
+        current_type = None
+        current_numbers = ""
+        
+        for tile in guess_tiles:
+            num = tile[0]
+            tile_type = tile[1]
+            
+            if current_type != tile_type:
+                if current_type:
+                    if current_type == 'm':
+                        man += current_numbers
+                    elif current_type == 'p':
+                        pin += current_numbers
+                    elif current_type == 's':
+                        sou += current_numbers
+                    elif current_type == 'z':
+                        honors += current_numbers
+                current_type = tile_type
+                current_numbers = num
+            else:
+                current_numbers += num
+                
+        if current_type:
+            if current_type == 'm':
+                man += current_numbers
+            elif current_type == 'p':
+                pin += current_numbers
+            elif current_type == 's':
+                sou += current_numbers
+            elif current_type == 'z':
+                honors += current_numbers
+            
+        # 计算向听数
+        shanten_result = helper.calculate_shanten(man=man, pin=pin, sou=sou, honors=honors)
+        if shanten_result.shanten != 0:
+            raise Exception("这不是一个有效的胡牌形状")
         
         # 检查每张牌
         result_tiles = []
@@ -192,7 +234,6 @@ class MahjongWordle:
             "user_id": user_id  # 记录猜测的用户
         }
         game_state["guesses"].append(guess_record)
-        game_state["last_guess_by"] = user_id  # 更新最后一次猜测的用户
         
         # 检查是否完成
         if guess_record["correct"] or len(game_state["guesses"]) >= game_state["max_attempts"]:
@@ -277,5 +318,4 @@ class MahjongWordle:
             "fu": hand_data.get("fu", 0),
             "yaku": [y.get("chinese_name", y.get("name", "")) for y in hand_data.get("yaku", [])],
             "started_by": game_state["started_by"],
-            "last_guess_by": game_state["last_guess_by"]
         } 

@@ -90,6 +90,13 @@ def generate_mentsu_based_hand() -> str:
             # 转换为字符串并添加花色
             hand_str += ''.join(map(str, parts[suit])) + suit
     
+    # 检查每种牌的数量是否超过4张
+    tile_counts = count_tiles(hand_str)
+    for tile, count in tile_counts.items():
+        if count > 4:
+            # 如果超过4张，重新生成
+            return generate_mentsu_based_hand()
+    
     return hand_str
 
 def generate_valid_hands(limit: int, output_file: str) -> str:
