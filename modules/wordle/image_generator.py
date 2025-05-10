@@ -1,7 +1,5 @@
 import os
 from PIL import Image, ImageDraw, ImageFont
-import cairosvg
-import io
 from typing import Dict, List, Tuple, Optional, Any
 
 class MahjongImageGenerator:
@@ -28,34 +26,6 @@ class MahjongImageGenerator:
         self.tile_cache = {}       # 缓存已加载的麻将牌图像
         self.max_attempts = max_attempts  # 最大猜测次数
         
-    def convert_svg_to_pil(self, svg_path: str, width: int, height: int) -> Image.Image:
-        """将SVG转换为PIL图像
-        
-        Args:
-            svg_path: SVG文件路径
-            width: 输出图像宽度
-            height: 输出图像高度
-            
-        Returns:
-            PIL图像对象
-        """
-        # 使用cairosvg将SVG转换为PNG
-        if not os.path.exists(svg_path):
-            # 如果找不到特定的SVG，使用空白牌
-            svg_path = os.path.join(self.resources_dir, "Blank.svg")
-            
-        try:
-            png_data = cairosvg.svg2png(
-                url=svg_path,
-                output_width=width,
-                output_height=height
-            )
-            return Image.open(io.BytesIO(png_data))
-        except Exception as e:
-            print(f"转换SVG失败: {e}")
-            # 返回一个空白图像
-            return Image.new('RGBA', (width, height), (255, 255, 255, 0))
-    
     def get_tile_image(self, tile_code: str) -> Image.Image:
         """获取麻将牌图像
         
@@ -75,24 +45,24 @@ class MahjongImageGenerator:
         # 映射到文件名
         file_mapping = {
             "m": {
-                "1": "Man1.svg", "2": "Man2.svg", "3": "Man3.svg",
-                "4": "Man4.svg", "5": "Man5.svg", "6": "Man6.svg",
-                "7": "Man7.svg", "8": "Man8.svg", "9": "Man9.svg"
+                "1": "Man1.png", "2": "Man2.png", "3": "Man3.png",
+                "4": "Man4.png", "5": "Man5.png", "6": "Man6.png",
+                "7": "Man7.png", "8": "Man8.png", "9": "Man9.png"
             },
             "p": {
-                "1": "Pin1.svg", "2": "Pin2.svg", "3": "Pin3.svg",
-                "4": "Pin4.svg", "5": "Pin5.svg", "6": "Pin6.svg",
-                "7": "Pin7.svg", "8": "Pin8.svg", "9": "Pin9.svg"
+                "1": "Pin1.png", "2": "Pin2.png", "3": "Pin3.png",
+                "4": "Pin4.png", "5": "Pin5.png", "6": "Pin6.png",
+                "7": "Pin7.png", "8": "Pin8.png", "9": "Pin9.png"
             },
             "s": {
-                "1": "Sou1.svg", "2": "Sou2.svg", "3": "Sou3.svg",
-                "4": "Sou4.svg", "5": "Sou5.svg", "6": "Sou6.svg",
-                "7": "Sou7.svg", "8": "Sou8.svg", "9": "Sou9.svg"
+                "1": "Sou1.png", "2": "Sou2.png", "3": "Sou3.png",
+                "4": "Sou4.png", "5": "Sou5.png", "6": "Sou6.png",
+                "7": "Sou7.png", "8": "Sou8.png", "9": "Sou9.png"
             },
             "z": {
-                "1": "Ton.svg", "2": "Nan.svg", "3": "Shaa.svg",
-                "4": "Pei.svg", "5": "Haku.svg", "6": "Hatsu.svg",
-                "7": "Chun.svg"
+                "1": "Ton.png", "2": "Nan.png", "3": "Shaa.png",
+                "4": "Pei.png", "5": "Haku.png", "6": "Hatsu.png",
+                "7": "Chun.png"
             }
         }
         
@@ -100,14 +70,34 @@ class MahjongImageGenerator:
         
         if not tile_filename:
             # 如果找不到对应的牌，使用空白牌
-            tile_filename = "Blank.svg"
+            tile_filename = "Blank.png"
         
-        svg_path = os.path.join(self.resources_dir, tile_filename)
-        tile_image = self.convert_svg_to_pil(svg_path, self.tile_size[0], self.tile_size[1])
-        
-        # 缓存图像
+        png_path = os.path.join(self.resources_dir, tile_filename)
+
+        try:
+            tile_image = Image.open(png_path)
+            if tile_image.size != self.tile_size:
+                tile_image = tile_image.resize(self.tile_size, Image.Resampling.LANCZOS)
+            if tile_image.mode != 'RGBA': # Ensure RGBA for alpha compositing
+                 tile_image = tile_image.convert('RGBA')
+        except FileNotFoundError:
+            # print(f"Tile image not found: {png_path}. Using a blank image.")
+            # Attempt to load a generic Blank.png if the specific tile is missing
+            try:
+                blank_png_path = os.path.join(self.resources_dir, "Blank.png")
+                tile_image = Image.open(blank_png_path)
+                if tile_image.size != self.tile_size:
+                    tile_image = tile_image.resize(self.tile_size, Image.Resampling.LANCZOS)
+                if tile_image.mode != 'RGBA':
+                    tile_image = tile_image.convert('RGBA')
+            except Exception as e_blank:
+                # print(f"Blank.png also not found or error loading it: {e_blank}. Creating a default blank.")
+                tile_image = Image.new('RGBA', self.tile_size, (255, 255, 255, 0)) # Transparent blank
+        except Exception as e:
+            # print(f"Error loading tile image '{png_path}': {e}. Using a default blank image.")
+            tile_image = Image.new('RGBA', self.tile_size, (255, 255, 255, 0))
+            
         self.tile_cache[tile_code] = tile_image
-        
         return tile_image.copy()
     
     def create_wordle_image(
@@ -207,5 +197,5 @@ class MahjongImageGenerator:
         # 确保输出目录存在
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
-        image.save(output_path)
+        image.save(output_path,'PNG')
         return output_path 

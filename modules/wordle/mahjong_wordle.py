@@ -3,7 +3,7 @@ import re
 from typing import Dict, List, Tuple, Optional, Any
 from .data_loader import MahjongDataLoader
 from .image_generator import MahjongImageGenerator
-from ..analysis.mahjong_utils import MahjongHelper
+from ..analysis.mahjong_utils import MahjongHelper, PaiAnalyzer
 
 class MahjongWordle:
     """麻将Wordle游戏"""
@@ -148,7 +148,7 @@ class MahjongWordle:
             del self.current_games[game_key]
             raise Exception("游戏已结束")
         
-        # 解析猜测
+        # 解析猜测 (这部分仍然需要，用于后续的牌面比较)
         try:
             guess_tiles = self._parse_guess(guess_str)
         except Exception as e:
@@ -164,44 +164,27 @@ class MahjongWordle:
         # 检查是否是胡牌形状（向听数为0）
         helper = MahjongHelper()
         
-        # 将猜测的牌转换为手牌字符串格式
-        man = pin = sou = honors = ""
-        current_type = None
-        current_numbers = ""
+        temp_analyzer_for_shanten = PaiAnalyzer()
+        cleaned_guess_str = guess_str.strip() 
+        components_for_shanten = temp_analyzer_for_shanten.parse_hand(cleaned_guess_str)
+
+        shanten_result = helper.calculate_shanten(
+            man=components_for_shanten.man,
+            pin=components_for_shanten.pin,
+            sou=components_for_shanten.sou,
+            honors=components_for_shanten.honors
+        )
         
-        for tile in guess_tiles:
-            num = tile[0]
-            tile_type = tile[1]
-            
-            if current_type != tile_type:
-                if current_type:
-                    if current_type == 'm':
-                        man += current_numbers
-                    elif current_type == 'p':
-                        pin += current_numbers
-                    elif current_type == 's':
-                        sou += current_numbers
-                    elif current_type == 'z':
-                        honors += current_numbers
-                current_type = tile_type
-                current_numbers = num
-            else:
-                current_numbers += num
-                
-        if current_type:
-            if current_type == 'm':
-                man += current_numbers
-            elif current_type == 'p':
-                pin += current_numbers
-            elif current_type == 's':
-                sou += current_numbers
-            elif current_type == 'z':
-                honors += current_numbers
-            
-        # 计算向听数
-        shanten_result = helper.calculate_shanten(man=man, pin=pin, sou=sou, honors=honors)
-        if shanten_result.shanten != 0:
-            raise Exception("这不是一个有效的胡牌形状")
+        # 新增：首先检查向听数计算本身是否成功
+        if not shanten_result.success:
+            # 如果 MahjongHelper.calculate_shanten 内部报告了错误
+            error_detail = shanten_result.error if shanten_result.error else "未知内部错误"
+            raise Exception(f"内部向听计算失败: {error_detail}") 
+        
+        # 如果计算成功，检查向听数是否大于0 (等于0或-1都表示有效和牌)
+        if shanten_result.shanten > 0: 
+            raise Exception(f"这不是一个有效的胡牌形状 (实际向听数: {shanten_result.shanten})")
+        # --- END MODIFICATION ---
         
         # 检查每张牌
         result_tiles = []
