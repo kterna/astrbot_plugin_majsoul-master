@@ -1,6 +1,7 @@
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api.message_components import Plain, Image
+from astrbot.api import logger
 from .modules.query.extended_query import MajsoulQuery
 from .modules.gacha.gacha import GachaSystem
 from .modules.analysis.mahjong_utils import PaiAnalyzer
@@ -44,6 +45,13 @@ class MajsoulPlugin(Star):
         for dir_name in directories:
             dir_path = os.path.join(os.path.dirname(__file__), dir_name)
             os.makedirs(dir_path, exist_ok=True)
+
+    async def set_group_enabled(self, group_id: str, enabled: bool):
+        """设置群组的插件启用状态"""
+        if 'group_enabled' not in self.config:
+            self.config['group_enabled'] = {}
+        self.config['group_enabled'][group_id] = enabled
+        logger.info(f"雀魂插件状态更新：群组 {group_id} -> {enabled}")
 
     @filter.command("雀魂帮助")
     async def handle_help(self, event: AstrMessageEvent):
@@ -328,7 +336,7 @@ class MajsoulPlugin(Star):
         except Exception as e:
             yield event.plain_result(f"生成题库失败: {str(e)}")
             
-    @filter.command(["雀魂开", "雀魂关"])
+    @filter.command("雀魂开", alias=["雀魂关"])
     async def handle_plugin_switch(self, event: AstrMessageEvent):
         """处理插件开关命令"""
         message = event.message_str.strip()
