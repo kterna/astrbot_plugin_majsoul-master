@@ -14,7 +14,7 @@ from .modules.wordle.data_loader import MahjongDataLoader
 import os
 import re
 
-@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.5.1")
+@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.5.2")
 class MajsoulPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
