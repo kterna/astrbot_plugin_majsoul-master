@@ -2,7 +2,7 @@ from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api.message_components import Plain, Image
 from astrbot.api import logger
-from .modules.query.extended_query import MajsoulQuery
+from .modules.query.extended_query import DEFAULT_LIMIT, MajsoulQuery
 from .modules.gacha.gacha import GachaSystem
 from .modules.analysis.mahjong_utils import PaiAnalyzer
 from .modules.wordle.mahjong_wordle import MahjongWordle
@@ -146,7 +146,7 @@ class MajsoulPlugin(Star):
                 
             # 解析参数并执行查询
             nickname, room_level, is_south, mode = self.query.parse_command_args(args)
-            success, result = await self.query.query_records(nickname, mode, DEFAULT_LIMIT, is_south)
+            success, result = await self.query.query_records(nickname, mode, DEFAULT_LIMIT, room_level, is_south)
             yield event.plain_result(result if success else f"查询失败: {result}")
         except Exception as e:
             yield event.plain_result(f"处理查询命令时出错: {str(e)}")
@@ -171,7 +171,7 @@ class MajsoulPlugin(Star):
                 return
                 
             # 获取最近对局记录
-            success, records_result = await self.query.query_records(nickname, mode, 3)
+            success, records_result = await self.query.query_records(nickname, mode, 3, room_level, is_south)
             if not success:
                 yield event.plain_result(stats_result + "\n\n无法获取最近对局记录")
                 return

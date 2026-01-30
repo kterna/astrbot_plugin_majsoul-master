@@ -157,7 +157,7 @@ class MajsoulAPI:
         """查询玩家战绩统计"""
         player = await self.get_player_info(nickname, mode)
         game_mode = self._get_game_mode(room_level, is_south, mode)
-        current_timestamp = int(datetime.now().timestamp())
+        current_timestamp = int(datetime.now().timestamp() * 1000)
         
         url = f"{self._get_api_url(mode)}/player_stats/{player['id']}/{START_TIME}/{current_timestamp}?mode={game_mode}"
         stats = await self.request(url)
@@ -169,13 +169,13 @@ class MajsoulAPI:
         return self.format_stats(stats, room_level, mode, nickname, tag)
 
     @handle_api_error
-    async def query_records(self, nickname: str, mode: GameMode = DEFAULT_MODE, limit: int = DEFAULT_LIMIT, is_south: bool = DEFAULT_DIRECTION) -> str:
+    async def query_records(self, nickname: str, mode: GameMode = DEFAULT_MODE, limit: int = DEFAULT_LIMIT, room_level: RoomLevel = DEFAULT_ROOM, is_south: bool = DEFAULT_DIRECTION) -> str:
         """查询玩家对局记录"""
         player = await self.get_player_info(nickname, mode)
-        current_timestamp = int(datetime.now().timestamp())
-        game_mode = self._get_game_mode("1", is_south, mode)  # 使用传入的场风参数
+        current_timestamp = int(datetime.now().timestamp() * 1000)
+        game_mode = self._get_game_mode(room_level, is_south, mode)  # 使用传入的场风参数
         
-        url = f"{self._get_api_url(mode)}/player_records/{player['id']}/{START_TIME}/{current_timestamp}?limit={limit}&mode={game_mode}"
+        url = f"{self._get_api_url(mode)}/player_records/{player['id']}/{current_timestamp}/{START_TIME}?limit={limit}&mode={game_mode}&descending=true"
         records = await self.request(url)
         
         if not records or not isinstance(records, list):
@@ -188,7 +188,7 @@ class MajsoulAPI:
         """查询玩家详细战绩统计"""
         player = await self.get_player_info(nickname, mode)
         game_mode = self._get_game_mode(room_level, is_south, mode)
-        current_timestamp = int(datetime.now().timestamp())
+        current_timestamp = int(datetime.now().timestamp() * 1000)
         
         url = f"{self._get_api_url(mode)}/player_extended_stats/{player['id']}/1262304000000/{current_timestamp}?mode={game_mode}"
         data = await self.request(url)
@@ -426,12 +426,10 @@ class MajsoulQuery:
         return await self.api.query_stats(nickname, mode, room_level, is_south)
         
     async def query_records(self, nickname: str, mode: GameMode = DEFAULT_MODE,
-                          limit: int = DEFAULT_LIMIT) -> Tuple[bool, str]:
+                          limit: int = DEFAULT_LIMIT, room_level: RoomLevel = DEFAULT_ROOM, is_south: bool = DEFAULT_DIRECTION) -> Tuple[bool, str]:
         """查询玩家对局记录"""
         try:
-            # 从命令中解析参数
-            _, room_level, is_south, game_mode = self.parse_command_args(nickname)
-            return await self.api.query_records(nickname, game_mode, limit, is_south)
+            return await self.api.query_records(nickname, mode, limit, room_level, is_south)
         except Exception as e:
             return False, f"查询失败: {str(e)}"
 
@@ -505,7 +503,7 @@ class MajsoulQuery:
             
             # 根据原始命令类型执行不同的查询
             if "牌谱" in command:
-                return await self.api.query_records(nickname, mode, DEFAULT_LIMIT, is_south)
+                return await self.api.query_records(nickname, mode, DEFAULT_LIMIT, room_level, is_south)
             elif "详细" in command:
                 return await self.api.query_extended_stats(nickname, mode, room_level, is_south)
             else:
