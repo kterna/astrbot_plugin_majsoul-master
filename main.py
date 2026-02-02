@@ -15,7 +15,7 @@ import os
 import re
 import json
 
-@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.5.2")
+@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.5.3")
 class MajsoulPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)

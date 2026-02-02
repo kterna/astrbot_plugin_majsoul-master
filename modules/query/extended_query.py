@@ -425,7 +425,11 @@ class MajsoulQuery:
     async def close(self) -> None:
         """关闭API连接"""
         await self.api.close()
-        
+
+    async def search_player(self, nickname: str, mode: GameMode = DEFAULT_MODE) -> Tuple[bool, str]:
+        """Search player by nickname for bind validation."""
+        return await self.api.search_player(nickname, mode)
+
     async def query_stats(self, nickname: str, mode: GameMode = DEFAULT_MODE,
                          room_level: RoomLevel = DEFAULT_ROOM, is_south: bool = DEFAULT_DIRECTION) -> Tuple[bool, str]:
         """查询玩家战绩统计"""
