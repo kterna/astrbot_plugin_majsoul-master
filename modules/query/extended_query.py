@@ -7,6 +7,7 @@ import urllib.parse
 from datetime import datetime
 from functools import wraps
 from .player_tag import PlayerTagAnalyzer
+from ...utils.level import MajsoulLevel, level_id_to_tag, level_id_to_display
 
 # 类型别名
 GameMode = Literal["3", "4"]
@@ -245,14 +246,25 @@ class MajsoulAPI:
             
             # 如果有段位信息
             if "level" in stats:
-                level = stats["level"]
-                max_level = stats.get("max_level", {})
+                level_data = stats["level"]
+                max_level_data = stats.get("max_level", {})
+
+                level_id = level_data.get("id", 0)
+                level_score = level_data.get("score", 0)
+                level_delta = level_data.get("delta", 0)
+                max_level_id = max_level_data.get("id", 0)
+                max_level_score = max_level_data.get("score", 0)
+
+                # 使用 MajsoulLevel 转换段位信息
+                current_display = level_id_to_display(level_id, level_score) if level_id else str(level_score)
+                max_display = level_id_to_display(max_level_id, max_level_score) if max_level_id else str(max_level_score)
+
                 lines.extend([
                     "",
                     "【段位信息】",
-                    f"当前段位分数: {level.get('score', 0)}",
-                    f"最近变化: {level.get('delta', 0)}",
-                    f"最高段位分数: {max_level.get('score', 0)}"
+                    f"当前段位: {current_display}",
+                    f"最近变化: {level_delta:+d}",
+                    f"最高段位: {max_display}"
                 ])
             
             return "\n".join(lines)
@@ -295,7 +307,7 @@ class MajsoulAPI:
                 
                 # 显示玩家信息
                 for i, player in enumerate(players, 1):
-                    level_str = f"(Lv.{player['level']//100:d})" if "level" in player else ""
+                    level_str = f"({level_id_to_tag(player['level'])})" if "level" in player else ""
                     score_str = f"{player.get('score', 0):+d}"
                     lines.append(f"  {i}位 {player['nickname']}{level_str} {score_str}")
                 

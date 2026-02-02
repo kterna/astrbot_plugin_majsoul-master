@@ -81,10 +81,11 @@ class MajsoulPlugin(Star):
         return self.bindings.get(user_id, {}).get("nickname")
 
     def _is_room_param(self, arg: str) -> bool:
-        """检查参数是否是房间参数（如金东、三人玉南等）"""
+        """Check if arg is a room/mode param (e.g. 金东, 三人玉南, 三人)."""
         room_patterns = [
             r'^三人?(金|玉|王座?)(东|南)?$',
             r'^(金|玉|王座?)(东|南)?$',
+            r'^三人$',  # 3p default (金南), so binding users can use "雀魂查询 三人"
         ]
         return any(re.match(p, arg) for p in room_patterns)
 
@@ -140,8 +141,10 @@ class MajsoulPlugin(Star):
 
 
 牌谱查询：
-- 雀魂牌谱 昵称：查询玩家最近的四麻对局记录
+- 雀魂牌谱 昵称：查询玩家最近的四麻对局记录（默认5条）
+- 雀魂牌谱 昵称 10：查询玩家最近10条四麻对局记录
 - 雀魂牌谱 昵称 三人：查询玩家最近的三麻对局记录
+- 雀魂牌谱 昵称 三人 10：查询玩家最近10条三麻对局记录
 
 【抽卡功能】
 - 雀魂十连：模拟雀魂十连抽卡
@@ -217,9 +220,16 @@ class MajsoulPlugin(Star):
                 # 尝试在房间参数前添加绑定昵称
                 args = self._prepend_bound_nickname(args, user_id)
 
+            # 解析数量参数（最后一个纯数字参数）
+            parts = args.strip().split()
+            limit = DEFAULT_LIMIT
+            if parts and parts[-1].isdigit():
+                limit = min(int(parts[-1]), 30)  # 最多30条
+                args = ' '.join(parts[:-1])
+
             # 解析参数并执行查询
             nickname, room_level, is_south, mode = self.query.parse_command_args(args)
-            success, result = await self.query.query_records(nickname, mode, DEFAULT_LIMIT, room_level, is_south)
+            success, result = await self.query.query_records(nickname, mode, limit, room_level, is_south)
             yield event.plain_result(result if success else f"查询失败: {result}")
         except Exception as e:
             yield event.plain_result(f"处理查询命令时出错: {str(e)}")
