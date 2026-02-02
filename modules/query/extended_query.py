@@ -152,6 +152,12 @@ class MajsoulAPI:
         return result[0]
 
     @handle_api_error
+    async def search_player(self, nickname: str, mode: GameMode = DEFAULT_MODE) -> str:
+        """搜索玩家是否存在，用于绑定验证"""
+        player = await self.get_player_info(nickname, mode)
+        return f"找到玩家：{player.get('nickname', nickname)}"
+
+    @handle_api_error
     async def query_stats(self, nickname: str, mode: GameMode = DEFAULT_MODE, 
                          room_level: RoomLevel = DEFAULT_ROOM, is_south: bool = DEFAULT_DIRECTION) -> str:
         """查询玩家战绩统计"""

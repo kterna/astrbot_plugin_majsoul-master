@@ -13,6 +13,7 @@ from .modules.wordle.data_loader import MahjongDataLoader
 
 import os
 import re
+import json
 
 @register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.5.2")
 class MajsoulPlugin(Star):
@@ -35,9 +36,13 @@ class MajsoulPlugin(Star):
         
         # 初始化麻将Wordle游戏
         self.wordle = MahjongWordle(os.path.dirname(__file__))
-        
+
         # 初始化多牌谱麻将Wordle游戏
         self.multi_wordle = MultiMahjongWordle(os.path.dirname(__file__))
+
+        # 加载账号绑定数据
+        self.bindings_file = os.path.join(os.path.dirname(__file__), "data", "bindings.json")
+        self.bindings = self._load_bindings()
 
     def ensure_directories(self):
         """确保必要的目录存在"""
@@ -53,13 +58,61 @@ class MajsoulPlugin(Star):
         self.config['group_enabled'][group_id] = enabled
         logger.info(f"雀魂插件状态更新：群组 {group_id} -> {enabled}")
 
+    def _load_bindings(self) -> dict:
+        """加载账号绑定数据"""
+        if os.path.exists(self.bindings_file):
+            try:
+                with open(self.bindings_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"加载绑定数据失败: {e}")
+        return {}
+
+    def _save_bindings(self):
+        """保存账号绑定数据"""
+        try:
+            with open(self.bindings_file, 'w', encoding='utf-8') as f:
+                json.dump(self.bindings, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"保存绑定数据失败: {e}")
+
+    def _get_bound_nickname(self, user_id: str) -> str:
+        """获取用户绑定的昵称"""
+        return self.bindings.get(user_id, {}).get("nickname")
+
+    def _is_room_param(self, arg: str) -> bool:
+        """检查参数是否是房间参数（如金东、三人玉南等）"""
+        room_patterns = [
+            r'^三人?(金|玉|王座?)(东|南)?$',
+            r'^(金|玉|王座?)(东|南)?$',
+        ]
+        return any(re.match(p, arg) for p in room_patterns)
+
+    def _prepend_bound_nickname(self, args: str, user_id: str) -> str:
+        """如果args只有房间参数，则在前面添加绑定的昵称"""
+        bound_nickname = self._get_bound_nickname(user_id)
+        if not bound_nickname:
+            return args
+
+        parts = args.strip().split()
+        # 如果第一个参数看起来是房间参数，则在前面添加绑定的昵称
+        if parts and self._is_room_param(parts[0]):
+            return f"{bound_nickname} {args}"
+        return args
+
     @filter.command("雀魂帮助")
     async def handle_help(self, event: AstrMessageEvent):
         """显示雀魂插件帮助信息"""
         help_text = """雀魂多功能插件使用帮助：
-        
+
+【账号绑定】
+- 雀魂绑定 昵称：绑定雀魂账号（绑定后查询可省略昵称）
+- 雀魂解绑：解除账号绑定
+- 雀魂绑定查询：查看当前绑定信息
+
 【查询功能】
 （仅支持金之间以上场次）
+（绑定账号后可省略昵称直接查询）
 基础查询：
 - 雀魂查询 昵称：查询玩家四麻金之间南场战绩
 - 雀魂查询 昵称 金东：查询玩家四麻金之间东场战绩
@@ -121,12 +174,22 @@ class MajsoulPlugin(Star):
     async def handle_query(self, event: AstrMessageEvent):
         """查询雀魂玩家信息"""
         try:
+            user_id = str(event.message_obj.sender.user_id)
             # 去除命令前缀
             args = re.sub(r'^(雀魂查询|雀魂信息)\s*', '', event.message_str.strip())
+
+            # 如果没有输入参数，尝试使用绑定的昵称
             if not args:
-                yield event.plain_result("请输入要查询的昵称")
-                return
-                
+                bound_nickname = self._get_bound_nickname(user_id)
+                if bound_nickname:
+                    args = bound_nickname
+                else:
+                    yield event.plain_result("请输入要查询的昵称，或使用 雀魂绑定 昵称 绑定账号")
+                    return
+            else:
+                # 尝试在房间参数前添加绑定昵称
+                args = self._prepend_bound_nickname(args, user_id)
+
             # 解析参数并执行查询
             nickname, room_level, is_south, mode = self.query.parse_command_args(args)
             success, result = await self.query.query_stats(nickname, mode, room_level, is_south)
@@ -138,12 +201,22 @@ class MajsoulPlugin(Star):
     async def handle_records(self, event: AstrMessageEvent):
         """查询雀魂玩家最近对局记录"""
         try:
+            user_id = str(event.message_obj.sender.user_id)
             # 去除命令前缀
             args = re.sub(r'^雀魂牌谱\s*', '', event.message_str.strip())
+
+            # 如果没有输入参数，尝试使用绑定的昵称
             if not args:
-                yield event.plain_result("请输入要查询的昵称")
-                return
-                
+                bound_nickname = self._get_bound_nickname(user_id)
+                if bound_nickname:
+                    args = bound_nickname
+                else:
+                    yield event.plain_result("请输入要查询的昵称，或使用 雀魂绑定 昵称 绑定账号")
+                    return
+            else:
+                # 尝试在房间参数前添加绑定昵称
+                args = self._prepend_bound_nickname(args, user_id)
+
             # 解析参数并执行查询
             nickname, room_level, is_south, mode = self.query.parse_command_args(args)
             success, result = await self.query.query_records(nickname, mode, DEFAULT_LIMIT, room_level, is_south)
@@ -155,12 +228,22 @@ class MajsoulPlugin(Star):
     async def handle_detailed_query(self, event: AstrMessageEvent):
         """查询雀魂玩家详细战绩"""
         try:
+            user_id = str(event.message_obj.sender.user_id)
             # 去除命令前缀
             args = re.sub(r'^(雀魂详细|详细雀魂)\s*', '', event.message_str.strip())
+
+            # 如果没有输入参数，尝试使用绑定的昵称
             if not args:
-                yield event.plain_result("请输入要查询的雀魂昵称")
-                return
-            
+                bound_nickname = self._get_bound_nickname(user_id)
+                if bound_nickname:
+                    args = bound_nickname
+                else:
+                    yield event.plain_result("请输入要查询的雀魂昵称，或使用 雀魂绑定 昵称 绑定账号")
+                    return
+            else:
+                # 尝试在房间参数前添加绑定昵称
+                args = self._prepend_bound_nickname(args, user_id)
+
             # 解析命令参数
             nickname, room_level, is_south, mode = self.query.parse_command_args(args)
             
@@ -336,7 +419,7 @@ class MajsoulPlugin(Star):
         except Exception as e:
             yield event.plain_result(f"生成题库失败: {str(e)}")
             
-    @filter.command("雀魂开", alias=["雀魂关"])
+    @filter.command("雀魂开", alias={"雀魂关"})
     async def handle_plugin_switch(self, event: AstrMessageEvent):
         """处理插件开关命令"""
         message = event.message_str.strip()
@@ -421,6 +504,57 @@ class MajsoulPlugin(Star):
                     Image(file=image_path)
                 ]
                 yield message_result
-                
+
             except Exception as e:
                 yield event.plain_result(f"猜测失败: {e}")
+
+    @filter.command("雀魂绑定")
+    async def handle_bind(self, event: AstrMessageEvent):
+        """绑定雀魂账号"""
+        user_id = str(event.message_obj.sender.user_id)
+        args = re.sub(r'^雀魂绑定\s*', '', event.message_str.strip())
+
+        if not args:
+            yield event.plain_result("请输入要绑定的雀魂昵称，例如：雀魂绑定 你的昵称")
+            return
+
+        nickname = args.split()[0]
+
+        # 验证昵称是否存在（通过查询API）
+        success, result = await self.query.search_player(nickname)
+        if not success:
+            yield event.plain_result(f"绑定失败：{result}")
+            return
+
+        # 保存绑定
+        self.bindings[user_id] = {"nickname": nickname}
+        self._save_bindings()
+
+        yield event.plain_result(f"绑定成功！已将您的账号绑定到雀魂昵称：{nickname}\n现在使用雀魂查询/雀魂牌谱/雀魂详细时可以不用输入昵称了。")
+
+    @filter.command("雀魂解绑")
+    async def handle_unbind(self, event: AstrMessageEvent):
+        """解绑雀魂账号"""
+        user_id = str(event.message_obj.sender.user_id)
+
+        if user_id not in self.bindings:
+            yield event.plain_result("您还没有绑定雀魂账号。")
+            return
+
+        nickname = self.bindings[user_id].get("nickname", "未知")
+        del self.bindings[user_id]
+        self._save_bindings()
+
+        yield event.plain_result(f"解绑成功！已解除与雀魂昵称 {nickname} 的绑定。")
+
+    @filter.command("雀魂绑定查询")
+    async def handle_binding_info(self, event: AstrMessageEvent):
+        """查询当前绑定信息"""
+        user_id = str(event.message_obj.sender.user_id)
+
+        if user_id not in self.bindings:
+            yield event.plain_result("您还没有绑定雀魂账号。使用 雀魂绑定 昵称 来绑定。")
+            return
+
+        nickname = self.bindings[user_id].get("nickname", "未知")
+        yield event.plain_result(f"您当前绑定的雀魂昵称：{nickname}")
