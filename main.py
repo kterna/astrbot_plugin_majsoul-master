@@ -81,13 +81,20 @@ class MajsoulPlugin(Star):
         return self.bindings.get(user_id, {}).get("nickname")
 
     def _is_room_param(self, arg: str) -> bool:
-        """Check if arg is a room/mode param (e.g. 金东, 三人玉南, 三人)."""
+        """Check if arg is a room/mode param (e.g. 金东, 三人玉之间, 三人)."""
+        normalized = arg.strip().replace(" ", "")
+        normalized = normalized.replace("麻将", "")
+        normalized = normalized.replace("模式", "")
+        normalized = normalized.replace("房", "")
+        normalized = normalized.replace("场次", "")
+        normalized = normalized.replace("之间", "")
+        normalized = normalized.replace("场", "")
+
         room_patterns = [
-            r'^三人?(金|玉|王座?)(东|南)?$',
-            r'^(金|玉|王座?)(东|南)?$',
-            r'^三人$',  # 3p default (金南), so binding users can use "雀魂查询 三人"
+            r'^(三人|四人)?(金|玉|王座?|王)(东|南)?$',
+            r'^(三人|四人)$',  # default to 金南
         ]
-        return any(re.match(p, arg) for p in room_patterns)
+        return any(re.match(p, normalized) for p in room_patterns)
 
     def _prepend_bound_nickname(self, args: str, user_id: str) -> str:
         """如果args只有房间参数，则在前面添加绑定的昵称"""
@@ -173,7 +180,7 @@ class MajsoulPlugin(Star):
 """
         yield event.plain_result(help_text)
 
-    @filter.command("雀魂查询", alias=['雀魂信息'])
+    @filter.command("雀魂查询")
     async def handle_query(self, event: AstrMessageEvent):
         """查询雀魂玩家信息"""
         try:
@@ -234,7 +241,7 @@ class MajsoulPlugin(Star):
         except Exception as e:
             yield event.plain_result(f"处理查询命令时出错: {str(e)}")
 
-    @filter.command("雀魂详细", alias=["详细雀魂"])
+    @filter.command("雀魂详细")
     async def handle_detailed_query(self, event: AstrMessageEvent):
         """查询雀魂玩家详细战绩"""
         try:
