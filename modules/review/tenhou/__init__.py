@@ -1,0 +1,1 @@
+"""Tenhou conversion utils."""

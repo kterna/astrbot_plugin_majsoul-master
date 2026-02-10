@@ -60,6 +60,24 @@ GAME_MODES = {
     ("3", False, "3"): "25"  # 王座东
 }
 
+
+def encode_account_id2(account_id: int) -> int:
+    p = 6139246 ^ account_id
+    h_mask = 67108863
+    s = p & ~h_mask
+    z = p & h_mask
+    for _ in range(5):
+        z = ((511 & z) << 17) | (z >> 9)
+    return z + s + 10000000
+
+
+def extract_game_uuid(record: Dict[str, Any]) -> str:
+    for key in ("uuid", "game_uuid", "gameId", "id", "record_id"):
+        value = record.get(key)
+        if value:
+            return str(value)
+    return ""
+
 class APIError(Exception):
     """API错误"""
     def __init__(self, code: int, message: str = None):
@@ -186,6 +204,7 @@ class MajsoulAPI:
     async def query_records(self, nickname: str, mode: GameMode = DEFAULT_MODE, limit: int = DEFAULT_LIMIT, room_level: RoomLevel = DEFAULT_ROOM, is_south: bool = DEFAULT_DIRECTION) -> str:
         """查询玩家对局记录"""
         player = await self.get_player_info(nickname, mode)
+        player_id = int(player.get("id", 0))
         current_timestamp = int(datetime.now().timestamp() * 1000)
         game_mode = self._get_game_mode(room_level, is_south, mode)  # 使用传入的场风参数
         
@@ -195,7 +214,7 @@ class MajsoulAPI:
         if not records or not isinstance(records, list):
             raise APIError(-1)
             
-        return self.format_records(records, room_level, is_south, mode)
+        return self.format_records(records, room_level, is_south, mode, player_id)
 
     @handle_api_error
     async def query_extended_stats(self, nickname: str, mode: GameMode, room_level: RoomLevel, is_south: bool) -> str:
@@ -280,7 +299,14 @@ class MajsoulAPI:
         except Exception as e:
             return "格式化数据失败"
             
-    def format_records(self, records: List[Dict], room_level: RoomLevel, is_south: bool, mode: GameMode) -> str:
+    def format_records(
+        self,
+        records: List[Dict],
+        room_level: RoomLevel,
+        is_south: bool,
+        mode: GameMode,
+        player_id: int = 0,
+    ) -> str:
         """格式化对局记录
         
         Args:
@@ -321,6 +347,15 @@ class MajsoulAPI:
                     level_str = f"({level_id_to_tag(player['level'])})" if "level" in player else ""
                     score_str = f"{player.get('score', 0):+d}"
                     lines.append(f"  {i}位 {player['nickname']}{level_str} {score_str}")
+
+                game_uuid = extract_game_uuid(record)
+                if game_uuid:
+                    paipu_id = game_uuid
+                    if player_id > 0:
+                        encoded = encode_account_id2(player_id)
+                        paipu_id = f"{game_uuid}_a{encoded}"
+                    review_url = f"https://game.maj-soul.com/1/?paipu={paipu_id}"
+                    lines.append(f"/雀魂review {review_url}")
                 
                 lines.append("---")
                 

@@ -1,6 +1,6 @@
 # 雀魂多功能插件 (AstrBot Plugin Majsoul)
 
-这是一个为AstrBot开发的雀魂多功能插件，提供雀魂战绩查询、模拟抽卡等功能。
+这是一个为AstrBot开发的雀魂多功能插件，提供雀魂战绩查询、模拟抽卡、牌谱拉取等功能。
 目前仍为开发测试阶段，可能存在未知问题。
 
 [![moe_counter](https://count.getloli.com/get/@astrbot_plugin_majsoul-master?theme=moebooru)](https://github.com/kterna/astrbot_plugin_majsoul-master)
@@ -26,6 +26,10 @@
    - 单牌谱猜牌：传统Wordle风格的猜牌游戏
    - 多牌谱猜牌：同时猜测4个牌谱的高难度模式
 
+5. **牌谱拉取（原始JSON）**
+   - 国服账号池登录（管理员）
+   - 牌谱链接/paipu_id 拉取并缓存
+
 ## 使用方法
 
 ### 查询功能
@@ -38,6 +42,17 @@
 - `三麻牌谱 昵称`：查询该ID下最近五场的三麻对局信息
 - `雀魂详细 昵称`：查询该ID的详细战绩（包括战绩统计和最近对局记录）
 - `三麻详细 昵称`：查询该ID的三麻详细战绩（包括战绩统计和最近对局记录）
+- `雀魂牌谱` 的输出会附带可直接执行 `雀魂review` 的链接（用于拉取原始牌谱）
+
+### 牌谱拉取功能
+
+- `雀魂review <牌谱URL|paipu_id>`：拉取并缓存原始牌谱（`raw.json`）
+
+### 账号池管理（管理员）
+
+- `雀魂登录国服 <用户名> <密码>`：添加或更新国服登录账号
+- `雀魂登录列表`：查看账号池状态（脱敏）
+- `雀魂登录删除 <序号|uid|用户名>`：删除账号
 
 ### 抽卡功能
 
@@ -86,11 +101,5 @@
 
 - `api_url`：牌谱屋API地址
 - `default_pool`：默认卡池
-- `enable_image_output`：是否启用图片输出
-- `debug_mode`：是否启用调试模式
-- `extended_query`：扩展查询相关配置
-  - `default_records_limit`：默认查询记录数量
-  - `default_mode`：默认游戏模式（four/three）
-  - `default_level`：默认房间等级（all/bronze/silver/gold/jade/throne）
 
 更新日志见 [CHANGELOG.md](CHANGELOG.md)。

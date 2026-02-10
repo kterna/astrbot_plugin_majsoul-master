@@ -1,5 +1,5 @@
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
-from astrbot.api.star import Context, Star, register
+from astrbot.api.star import Context, Star, StarTools, register
 from astrbot.api.message_components import Plain, Image
 from astrbot.api import logger
 from .modules.query.extended_query import DEFAULT_LIMIT, MajsoulQuery
@@ -7,6 +7,7 @@ from .modules.gacha.gacha import GachaSystem
 from .modules.analysis.mahjong_utils import PaiAnalyzer
 from .modules.wordle.mahjong_wordle import MahjongWordle
 from .modules.wordle.multi_mahjong_wordle import MultiMahjongWordle
+from .modules.review import ReviewService
 from .utils.message_formatter import MahjongFormatter
 from .utils.generate_hands import generate_valid_hands
 from .modules.wordle.data_loader import MahjongDataLoader
@@ -14,11 +15,15 @@ from .modules.wordle.data_loader import MahjongDataLoader
 import os
 import re
 import json
+import asyncio
+from pathlib import Path
 
 @register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.5.3")
 class MajsoulPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
+        self.plugin_root = Path(__file__).resolve().parent
+        self.plugin_data_dir = StarTools.get_data_dir("astrbot_plugin_majsoul")
         self.ensure_directories()
         
         # 初始化配置
@@ -41,15 +46,36 @@ class MajsoulPlugin(Star):
         self.multi_wordle = MultiMahjongWordle(os.path.dirname(__file__))
 
         # 加载账号绑定数据
-        self.bindings_file = os.path.join(os.path.dirname(__file__), "data", "bindings.json")
+        self.bindings_file = str(self.plugin_data_dir / "bindings.json")
         self.bindings = self._load_bindings()
+
+        # 牌谱拉取服务
+        self.review_service = ReviewService(
+            plugin_root=self.plugin_root,
+            data_root=self.plugin_data_dir,
+            config=self.config,
+        )
 
     def ensure_directories(self):
         """确保必要的目录存在"""
-        directories = ['data', 'logs', 'cache', 'cache/wordle']
-        for dir_name in directories:
-            dir_path = os.path.join(os.path.dirname(__file__), dir_name)
-            os.makedirs(dir_path, exist_ok=True)
+        plugin_dirs = [
+            "data",
+            "logs",
+            "cache",
+            "cache/wordle",
+        ]
+        for dir_name in plugin_dirs:
+            dir_path = self.plugin_root / dir_name
+            dir_path.mkdir(parents=True, exist_ok=True)
+
+        data_dirs = [
+            self.plugin_data_dir,
+            self.plugin_data_dir / "review",
+            self.plugin_data_dir / "review" / "paipu",
+            self.plugin_data_dir / "cache",
+        ]
+        for path in data_dirs:
+            path.mkdir(parents=True, exist_ok=True)
 
     async def set_group_enabled(self, group_id: str, enabled: bool):
         """设置群组的插件启用状态"""
@@ -153,6 +179,14 @@ class MajsoulPlugin(Star):
 - 雀魂牌谱 昵称 三人：查询玩家最近的三麻对局记录
 - 雀魂牌谱 昵称 三人 10：查询玩家最近10条三麻对局记录
 
+【牌谱拉取】
+- 雀魂review <牌谱URL或paipu_id>：拉取并缓存原始牌谱（raw.json）
+
+【账号池管理（管理员）】
+- 雀魂登录国服 <用户名> <密码>：添加或更新国服账号
+- 雀魂登录列表：查看当前账号池
+- 雀魂登录删除 <序号|uid|用户名>：删除账号池账号
+
 【抽卡功能】
 - 雀魂十连：模拟雀魂十连抽卡
 - 切换雀魂卡池 <卡池名>：切换抽卡卡池
@@ -240,6 +274,79 @@ class MajsoulPlugin(Star):
             yield event.plain_result(result if success else f"查询失败: {result}")
         except Exception as e:
             yield event.plain_result(f"处理查询命令时出错: {str(e)}")
+
+    @filter.command("雀魂review")
+    async def handle_review(self, event: AstrMessageEvent):
+        """拉取并缓存雀魂原始牌谱"""
+        args = re.sub(r'^雀魂review\s*', '', event.message_str.strip())
+        if not args:
+            yield event.plain_result("请输入牌谱URL或paipu_id，例如：雀魂review https://game.maj-soul.com/1/?paipu=xxxx")
+            return
+
+        yield event.plain_result("正在拉取牌谱，请稍候...")
+        try:
+            success, message, _images = await asyncio.wait_for(
+                self.review_service.do_review(args),
+                timeout=180,
+            )
+        except asyncio.TimeoutError:
+            yield event.plain_result("牌谱拉取超时（超过180秒），请稍后重试")
+            return
+        except Exception as exc:
+            logger.error(f"[majsoul-review] do_review执行异常: {exc}", exc_info=True)
+            yield event.plain_result(f"牌谱拉取失败: {exc}")
+            return
+
+        if not success:
+            yield event.plain_result(message)
+            return
+
+        yield event.plain_result(message)
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("雀魂登录国服")
+    async def handle_login_cn(self, event: AstrMessageEvent):
+        """管理员添加/更新国服账号"""
+        args = re.sub(r'^雀魂登录国服\s*', '', event.message_str.strip())
+        parts = args.split(maxsplit=1)
+        if len(parts) != 2:
+            yield event.plain_result("请输入账号密码：雀魂登录国服 <用户名> <密码>")
+            return
+
+        yield event.plain_result("正在登录并验证账号，请稍候...")
+        try:
+            success, message = await asyncio.wait_for(
+                self.review_service.add_cn_account(parts[0].strip(), parts[1].strip()),
+                timeout=180,
+            )
+        except asyncio.TimeoutError:
+            yield event.plain_result("登录超时（超过180秒），请检查网络后重试")
+            return
+        except Exception as exc:
+            logger.error(f"[majsoul-review] add_cn_account执行异常: {exc}", exc_info=True)
+            yield event.plain_result(f"登录失败: {exc}")
+            return
+
+        yield event.plain_result(message)
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("雀魂登录列表")
+    async def handle_login_list(self, event: AstrMessageEvent):
+        """管理员查看账号池"""
+        text = await self.review_service.list_accounts()
+        yield event.plain_result(text)
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("雀魂登录删除")
+    async def handle_login_remove(self, event: AstrMessageEvent):
+        """管理员删除账号池账号"""
+        args = re.sub(r'^雀魂登录删除\s*', '', event.message_str.strip())
+        if not args:
+            yield event.plain_result("请输入要删除的目标：序号/uid/用户名")
+            return
+
+        success, message = await self.review_service.remove_account(args.strip())
+        yield event.plain_result(message)
 
     @filter.command("雀魂详细")
     async def handle_detailed_query(self, event: AstrMessageEvent):
