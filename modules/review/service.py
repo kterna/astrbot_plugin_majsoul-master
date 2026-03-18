@@ -1,8 +1,10 @@
 import asyncio
 import inspect
 import json
+import os
 import random
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Awaitable, Callable, List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
@@ -15,6 +17,15 @@ from .majsoul_connection import create_connection
 ProgressCallback = Callable[[str], Optional[Awaitable[None]]]
 
 
+@dataclass
+class RawPaipuFetchResult:
+    game_id: str
+    raw_path: Path
+    raw_path_relative: str
+    raw: dict
+    cache_hit: bool
+
+
 class ReviewService:
     """Raw paipu fetch service."""
 
@@ -22,6 +33,7 @@ class ReviewService:
         self.plugin_root = Path(plugin_root)
         self.data_root = Path(data_root)
         self.config = config or {}
+        self.repo_root = Path(os.path.commonpath([self.plugin_root, self.data_root])).parent
 
         self.review_data_dir = self.data_root / "review"
         self.paipu_dir = self.review_data_dir / "paipu"
@@ -133,6 +145,12 @@ class ReviewService:
     async def _read_json(self, path: Path):
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
+
+    def to_repo_relative_path(self, path: Path) -> str:
+        try:
+            return path.relative_to(self.repo_root).as_posix()
+        except ValueError:
+            return path.name
 
     async def _fetch_with_accounts(self, game_id: str, progress_cb: Optional[ProgressCallback] = None):
         accounts = await self.store.list_accounts()
@@ -365,35 +383,59 @@ class ReviewService:
                 lines.append("")
         return "\n".join(lines)
 
-    async def do_review(
+    async def fetch_raw_paipu(
         self,
         text: str,
         progress_cb: Optional[ProgressCallback] = None,
-    ) -> Tuple[bool, str, List[str]]:
-        """Kept for command compatibility. Only fetches raw paipu now."""
+    ) -> Tuple[bool, str, Optional[RawPaipuFetchResult]]:
+        """Fetch and persist raw paipu JSON for commands and LLM tools."""
         game_id = self.parse_game_id(text)
         if not game_id:
-            return False, "请输入有效的牌谱URL或paipu_id", []
+            return False, "请输入有效的牌谱URL或paipu_id", None
 
         await self._notify(progress_cb, f"已解析牌谱ID: {game_id}")
 
         raw_path = self.paipu_dir / f"{game_id} - raw.json"
+        cache_hit = raw_path.exists()
 
         try:
-            if raw_path.exists():
+            if cache_hit:
                 await self._notify(progress_cb, "命中原始牌谱缓存，跳过拉取")
                 raw = await self._read_json(raw_path)
             else:
                 await self._notify(progress_cb, "未命中原始牌谱缓存，开始拉取")
                 raw = await self._fetch_with_accounts(game_id, progress_cb=progress_cb)
         except Exception as exc:
-            return False, f"牌谱拉取失败: {exc}", []
+            return False, f"牌谱拉取失败: {exc}", None
 
-        summary = self._build_summary(raw)
+        return True, "", RawPaipuFetchResult(
+            game_id=game_id,
+            raw_path=raw_path,
+            raw_path_relative=self.to_repo_relative_path(raw_path),
+            raw=raw,
+            cache_hit=cache_hit,
+        )
+
+    async def do_review(
+        self,
+        text: str,
+        progress_cb: Optional[ProgressCallback] = None,
+    ) -> Tuple[bool, str, List[str]]:
+        """Kept for command compatibility. Only fetches raw paipu now."""
+        success, message, fetch_result = await self.fetch_raw_paipu(
+            text,
+            progress_cb=progress_cb,
+        )
+        if not success or fetch_result is None:
+            return False, message, []
+
+        summary = self._build_summary(fetch_result.raw)
+        cache_status = "命中缓存" if fetch_result.cache_hit else "新拉取并缓存"
         message = (
             "牌谱拉取成功\n"
-            f"game_id: {game_id}\n"
-            "缓存状态: 已写入\n"
+            f"game_id: {fetch_result.game_id}\n"
+            f"raw_json: {fetch_result.raw_path_relative}\n"
+            f"缓存状态: {cache_status}\n"
             f"{summary}"
         )
         return True, message, []

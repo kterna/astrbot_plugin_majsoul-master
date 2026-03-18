@@ -1,13 +1,13 @@
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, StarTools, register
 from astrbot.api.message_components import Plain, Image
-from astrbot.api import logger
+from astrbot.api import logger, llm_tool
 from .modules.query.extended_query import DEFAULT_LIMIT, MajsoulQuery
 from .modules.gacha.gacha import GachaSystem
 from .modules.analysis.mahjong_utils import PaiAnalyzer
 from .modules.wordle.mahjong_wordle import MahjongWordle
 from .modules.wordle.multi_mahjong_wordle import MultiMahjongWordle
-from .modules.review import ReviewService
+from .modules.review import PaipuAnalysisService, ReviewService
 from .utils.message_formatter import MahjongFormatter
 from .utils.generate_hands import generate_valid_hands
 from .modules.wordle.data_loader import MahjongDataLoader
@@ -55,6 +55,7 @@ class MajsoulPlugin(Star):
             data_root=self.plugin_data_dir,
             config=self.config,
         )
+        self.paipu_analysis = PaipuAnalysisService(self.review_service)
 
     def ensure_directories(self):
         """确保必要的目录存在"""
@@ -302,6 +303,189 @@ class MajsoulPlugin(Star):
             return
 
         yield event.plain_result(message)
+
+    @staticmethod
+    def _tool_json(payload: dict) -> str:
+        return json.dumps(payload, ensure_ascii=False, indent=2)
+
+    async def _run_paipu_analysis_tool(self, coro, tool_name: str) -> str:
+        try:
+            return self._tool_json(
+                await asyncio.wait_for(
+                    coro,
+                    timeout=180,
+                )
+            )
+        except asyncio.TimeoutError:
+            return self._tool_json(
+                {
+                    "status": "error",
+                    "message": "牌谱分析超时（超过180秒），请稍后重试",
+                }
+            )
+        except Exception as exc:
+            logger.error(f"[majsoul-review] {tool_name}执行异常: {exc}", exc_info=True)
+            return self._tool_json(
+                {
+                    "status": "error",
+                    "message": f"牌谱分析失败: {exc}",
+                }
+            )
+
+    @llm_tool("majsoul_fetch_paipu_json")
+    async def majsoul_fetch_paipu_json(
+        self,
+        event: AstrMessageEvent,
+        paipu_url_or_id: str,
+    ) -> str:
+        """将雀魂牌谱链接或 paipu_id 拉取为原始牌谱 JSON 并保存到插件缓存目录。
+
+        当用户希望把 `雀魂牌谱` 命令返回的原始牌谱链接保存成 json 文件时，调用这个工具。
+
+        Args:
+            paipu_url_or_id(string): 必填。雀魂牌谱链接，或链接中的 paipu_id。
+
+        """
+        try:
+            success, message, fetch_result = await asyncio.wait_for(
+                self.review_service.fetch_raw_paipu(paipu_url_or_id),
+                timeout=180,
+            )
+        except asyncio.TimeoutError:
+            return json.dumps(
+                {
+                    "status": "error",
+                    "message": "牌谱拉取超时（超过180秒），请稍后重试",
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        except Exception as exc:
+            logger.error(f"[majsoul-review] majsoul_fetch_paipu_json执行异常: {exc}", exc_info=True)
+            return json.dumps(
+                {
+                    "status": "error",
+                    "message": f"牌谱拉取失败: {exc}",
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+
+        if not success or fetch_result is None:
+            return json.dumps(
+                {
+                    "status": "error",
+                    "message": message,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+
+        return json.dumps(
+            {
+                "status": "success",
+                "game_id": fetch_result.game_id,
+                "raw_json_path": fetch_result.raw_path_relative,
+                "cache_hit": fetch_result.cache_hit,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    @llm_tool("majsoul_list_paipu_rounds")
+    async def majsoul_list_paipu_rounds(
+        self,
+        event: AstrMessageEvent,
+        paipu_source: str,
+    ) -> str:
+        """列出牌谱中的所有局，并返回每局的基础结果摘要。
+
+        Args:
+            paipu_source(string): 必填。仓库相对 raw.json 路径，或雀魂牌谱链接，或 paipu_id。
+
+        """
+        return await self._run_paipu_analysis_tool(
+            self.paipu_analysis.list_rounds(paipu_source),
+            "majsoul_list_paipu_rounds",
+        )
+
+    @llm_tool("majsoul_get_round_result")
+    async def majsoul_get_round_result(
+        self,
+        event: AstrMessageEvent,
+        paipu_source: str,
+        round_selector: str,
+    ) -> str:
+        """读取指定局的输赢、点数和役种信息。
+
+        Args:
+            paipu_source(string): 必填。仓库相对 raw.json 路径，或雀魂牌谱链接，或 paipu_id。
+            round_selector(string): 必填。局索引字符串，如 `8`，或局标签，如 `南2一本场`。
+
+        """
+        return await self._run_paipu_analysis_tool(
+            self.paipu_analysis.get_round_result(paipu_source, round_selector),
+            "majsoul_get_round_result",
+        )
+
+    @llm_tool("majsoul_get_round_turn_state")
+    async def majsoul_get_round_turn_state(
+        self,
+        event: AstrMessageEvent,
+        paipu_source: str,
+        round_selector: str,
+        turn_mode: str,
+        turn_number: int,
+        seat: int = -1,
+        phase: str = "discard",
+    ) -> str:
+        """读取指定局在某个巡目节点的各家手牌快照，并可附带指定 seat 的摸打轨迹。
+
+        Args:
+            paipu_source(string): 必填。仓库相对 raw.json 路径，或雀魂牌谱链接，或 paipu_id。
+            round_selector(string): 必填。局索引字符串，如 `8`，或局标签，如 `南2一本场`。
+            turn_mode(string): 必填。`global` 表示全桌第 N 巡快照，`seat_local` 表示指定 seat 的本地第 N 次摸打节点。
+            turn_number(number): 必填。第几巡或第几次摸打，必须大于 0。
+            seat(number): 可选。`seat_local` 模式下必填；`global` 模式下可填用于附带该 seat 的摸打轨迹，不需要时传 -1。
+            phase(string): 可选。仅 `seat_local` 模式有效，支持 `draw` 或 `discard`，默认 `discard`。
+
+        """
+        return await self._run_paipu_analysis_tool(
+            self.paipu_analysis.get_round_turn_state(
+                paipu_source,
+                round_selector,
+                turn_mode,
+                turn_number,
+                seat=seat,
+                phase=phase,
+            ),
+            "majsoul_get_round_turn_state",
+        )
+
+    @llm_tool("majsoul_get_player_round_trace")
+    async def majsoul_get_player_round_trace(
+        self,
+        event: AstrMessageEvent,
+        paipu_source: str,
+        round_selector: str,
+        player_selector: str,
+    ) -> str:
+        """读取指定玩家在某一局中的完整进张手牌轨迹。
+
+        Args:
+            paipu_source(string): 必填。仓库相对 raw.json 路径，或雀魂牌谱链接，或 paipu_id。
+            round_selector(string): 必填。局索引字符串，如 `8`，或局标签，如 `南2一本场`。
+            player_selector(string): 必填。玩家 seat 字符串，如 `0`，或该局中的精确昵称。
+
+        """
+        return await self._run_paipu_analysis_tool(
+            self.paipu_analysis.get_player_round_trace(
+                paipu_source,
+                round_selector,
+                player_selector,
+            ),
+            "majsoul_get_player_round_trace",
+        )
 
     @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("雀魂登录国服")
