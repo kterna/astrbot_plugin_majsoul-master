@@ -18,5 +18,20 @@
         "type": "int",
         "default": 240,
         "description": "WebUI 展示账号错误信息时的最大字符数"
+    },
+    "resource_pack_url": {
+        "type": "string",
+        "default": "https://github.com/kterna/astrbot_plugin_majsoul_resources/releases/download/v2026.05.04/majsoul-assets-full-2026.05.04.zip",
+        "description": "雀魂外置资源包下载地址"
+    },
+    "resource_pack_sha256": {
+        "type": "string",
+        "default": "6fa514b9026a68e6e374bfb48ed138d455d88096c0de3e6b7cbb7ecc60a79bc8",
+        "description": "雀魂外置资源包 SHA256 校验值"
+    },
+    "resource_pack_timeout_seconds": {
+        "type": "int",
+        "default": 600,
+        "description": "下载雀魂外置资源包的超时时间（秒）"
     }
 }

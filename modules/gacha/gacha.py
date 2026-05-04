@@ -14,15 +14,21 @@ from .resources import ResourceManager
 from .presenter import GachaPresenter
 
 class GachaSystem:
-    def __init__(self, data_dir: str):
+    def __init__(self, data_dir: str, resources_dir: str = None):
         self.data_dir = data_dir
         self.cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "cache")
         self.pools_file = os.path.join(os.path.dirname(__file__), "pools.json")
-        self.resource_manager = ResourceManager(data_dir)
+        self.resource_manager = ResourceManager(data_dir, resources_dir=resources_dir)
         self.presenter = GachaPresenter(self.resource_manager)
         self.pools = self._load_pools()
         self.current_pool = "standard"
         os.makedirs(self.cache_dir, exist_ok=True)
+
+    def resources_ready(self) -> bool:
+        return self.resource_manager.has_required_resources()
+
+    def reload_resources(self) -> None:
+        self.resource_manager.reload()
 
     def _load_pools(self) -> Dict[str, GachaPool]:
         try:
@@ -172,6 +178,11 @@ class GachaSystem:
             )
 
     async def _handle_gacha_ten(self, event: AstrMessageEvent, group_id: str) -> MessageEventResult:
+        if not self.resources_ready():
+            result = event.make_result()
+            result.chain = [Plain("抽卡资源未安装，请管理员先执行：雀魂资源下载")]
+            return result
+
         pool = self.pools.get(self.current_pool)
         if not pool:
             pool = self.pools["standard"]

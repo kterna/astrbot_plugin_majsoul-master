@@ -9,6 +9,7 @@ from .modules.wordle.mahjong_wordle import MahjongWordle
 from .modules.wordle.multi_mahjong_wordle import MultiMahjongWordle
 from .modules.review import PaipuAnalysisService, ReviewService
 from .modules.webui import MajsoulWebUIApi
+from .modules.resource_pack import ResourcePackManager, format_bytes
 from .utils.message_formatter import MahjongFormatter
 from .utils.generate_hands import generate_valid_hands
 from .modules.wordle.data_loader import MahjongDataLoader
@@ -30,6 +31,7 @@ class MajsoulPlugin(Star):
         # 初始化配置
         self.data_dir = os.path.join(os.path.dirname(__file__), "data")
         self.config = config or {}
+        self.resource_pack = ResourcePackManager(self.plugin_data_dir, self.config)
         
         # 初始化各个系统
         self.api_url = "https://5-data.amae-koromo.com/api/v2"  # 使用新的API地址
@@ -37,7 +39,7 @@ class MajsoulPlugin(Star):
         
         # 初始化模块
         self.query = MajsoulQuery(self.api_url)
-        self.gacha = GachaSystem(self.data_dir)
+        self.gacha = GachaSystem(self.data_dir, resources_dir=str(self.resource_pack.resources_dir))
         self.pai_analyzer = PaiAnalyzer()
         
         # 初始化麻将Wordle游戏
@@ -77,6 +79,7 @@ class MajsoulPlugin(Star):
             self.plugin_data_dir / "review",
             self.plugin_data_dir / "review" / "paipu",
             self.plugin_data_dir / "cache",
+            self.plugin_data_dir / "cache" / "resource_pack",
         ]
         for path in data_dirs:
             path.mkdir(parents=True, exist_ok=True)
@@ -195,6 +198,12 @@ class MajsoulPlugin(Star):
 - 雀魂十连：模拟雀魂十连抽卡
 - 切换雀魂卡池 <卡池名>：切换抽卡卡池
 - 查看雀魂卡池：查看当前可用卡池
+
+【资源管理（管理员）】
+- 雀魂资源状态：查看外置资源包安装状态
+- 雀魂资源下载：下载抽卡图片资源到插件数据目录
+- 雀魂资源更新：强制重新下载抽卡图片资源
+- 雀魂资源删除：删除本地外置资源包
 
 【牌理分析】
 - 牌理 <手牌>：分析麻将手牌（如：牌理 1112345678999m）
@@ -535,6 +544,61 @@ class MajsoulPlugin(Star):
         success, message = await self.review_service.remove_account(args.strip())
         yield event.plain_result(message)
 
+    def _format_resource_status(self) -> str:
+        status = self.resource_pack.status()
+        installed_text = "已安装" if status.installed else "未安装"
+        return (
+            "【雀魂资源状态】\n"
+            f"状态：{installed_text}\n"
+            f"版本：{status.version or '未知'}\n"
+            f"文件数：{status.file_count}\n"
+            f"大小：{format_bytes(status.total_size_bytes)}\n"
+            f"目录：{status.resources_dir}\n"
+            f"下载源：{self.resource_pack.pack_url}"
+        )
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("雀魂资源状态")
+    async def handle_resource_status(self, event: AstrMessageEvent):
+        """管理员查看外置资源包状态"""
+        yield event.plain_result(self._format_resource_status())
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("雀魂资源下载")
+    async def handle_resource_download(self, event: AstrMessageEvent):
+        """管理员下载外置资源包"""
+        yield event.plain_result("正在下载雀魂外置资源包，请稍候...")
+        try:
+            await asyncio.to_thread(self.resource_pack.install, False)
+            self.gacha.reload_resources()
+        except Exception as exc:
+            logger.error(f"[majsoul-resource] 下载资源包失败: {exc}", exc_info=True)
+            yield event.plain_result(f"资源下载失败: {exc}")
+            return
+        yield event.plain_result("资源下载完成。\n" + self._format_resource_status())
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("雀魂资源更新")
+    async def handle_resource_update(self, event: AstrMessageEvent):
+        """管理员强制更新外置资源包"""
+        yield event.plain_result("正在更新雀魂外置资源包，请稍候...")
+        try:
+            await asyncio.to_thread(self.resource_pack.install, True)
+            self.gacha.reload_resources()
+        except Exception as exc:
+            logger.error(f"[majsoul-resource] 更新资源包失败: {exc}", exc_info=True)
+            yield event.plain_result(f"资源更新失败: {exc}")
+            return
+        yield event.plain_result("资源更新完成。\n" + self._format_resource_status())
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("雀魂资源删除")
+    async def handle_resource_delete(self, event: AstrMessageEvent):
+        """管理员删除本地外置资源包"""
+        await asyncio.to_thread(self.resource_pack.delete)
+        self.gacha.reload_resources()
+        yield event.plain_result("已删除本地雀魂外置资源包。")
+
     @filter.command("雀魂详细")
     async def handle_detailed_query(self, event: AstrMessageEvent):
         """查询雀魂玩家详细战绩"""
@@ -579,6 +643,10 @@ class MajsoulPlugin(Star):
     @filter.command("雀魂十连")
     async def handle_gacha(self, event: AstrMessageEvent):
         """模拟雀魂十连抽卡"""
+        if not self.gacha.resources_ready():
+            yield event.plain_result("抽卡资源未安装，请管理员先执行：雀魂资源下载")
+            return
+
         pool = self.gacha.pools.get(self.gacha.current_pool)
         if not pool:
             pool = self.gacha.pools["standard"]
