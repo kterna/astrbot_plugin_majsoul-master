@@ -3,5 +3,20 @@
         "type": "string",
         "default": "standard",
         "description": "默认抽卡卡池"
+    },
+    "webui_enable": {
+        "type": "bool",
+        "default": true,
+        "description": "是否启用雀魂插件 WebUI 后端接口"
+    },
+    "webui_timeout_seconds": {
+        "type": "int",
+        "default": 180,
+        "description": "WebUI 执行登录、牌谱拉取等长任务时的超时时间（秒）"
+    },
+    "webui_error_preview_length": {
+        "type": "int",
+        "default": 240,
+        "description": "WebUI 展示账号错误信息时的最大字符数"
     }
 }

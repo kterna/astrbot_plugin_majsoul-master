@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>雀魂管理</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>雀魂管理</h1>
+          <p id="subtitle">astrbot_plugin_majsoul</p>
+        </div>
+        <div class="top-actions">
+          <button class="icon-button" id="refreshBtn" title="刷新" aria-label="刷新">↻</button>
+        </div>
+      </header>
+
+      <nav class="tabs" aria-label="页面导航">
+        <button class="tab active" data-tab="overview">概览</button>
+        <button class="tab" data-tab="accounts">账号池</button>
+        <button class="tab" data-tab="paipus">牌谱</button>
+        <button class="tab" data-tab="analysis">分析</button>
+      </nav>
+
+      <section class="notice hidden" id="notice"></section>
+
+      <section class="view active" id="view-overview">
+        <div class="metric-grid">
+          <article class="metric">
+            <span>账号</span>
+            <strong id="metricAccounts">-</strong>
+          </article>
+          <article class="metric">
+            <span>异常账号</span>
+            <strong id="metricFailedAccounts">-</strong>
+          </article>
+          <article class="metric">
+            <span>牌谱缓存</span>
+            <strong id="metricPaipus">-</strong>
+          </article>
+          <article class="metric">
+            <span>缓存大小</span>
+            <strong id="metricSize">-</strong>
+          </article>
+        </div>
+
+        <div class="panel-grid">
+          <section class="panel">
+            <header class="panel-header">
+              <h2>运行状态</h2>
+            </header>
+            <dl class="kv-list" id="statusList"></dl>
+          </section>
+          <section class="panel">
+            <header class="panel-header">
+              <h2>最近异常</h2>
+            </header>
+            <div class="empty" id="recentErrors">暂无异常</div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="view-accounts">
+        <section class="panel">
+          <header class="panel-header">
+            <h2>账号池</h2>
+            <button class="primary-button" id="showLoginForm">添加账号</button>
+          </header>
+
+          <form class="inline-form hidden" id="loginForm">
+            <input id="loginUsername" autocomplete="username" placeholder="用户名" />
+            <input id="loginPassword" autocomplete="current-password" type="password" placeholder="密码" />
+            <button class="primary-button" type="submit">登录验证</button>
+            <button class="ghost-button" type="button" id="hideLoginForm">取消</button>
+          </form>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>UID</th>
+                  <th>昵称</th>
+                  <th>用户名</th>
+                  <th>Token</th>
+                  <th>状态</th>
+                  <th>更新时间</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="accountsTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="view-paipus">
+        <section class="panel">
+          <header class="panel-header">
+            <h2>牌谱缓存</h2>
+            <div class="header-controls">
+              <input id="paipuSearch" placeholder="搜索" />
+              <button class="primary-button" id="showFetchForm">拉取牌谱</button>
+            </div>
+          </header>
+
+          <form class="inline-form hidden" id="fetchForm">
+            <input id="fetchSource" placeholder="paipu URL 或 paipu_id" />
+            <button class="primary-button" type="submit">拉取</button>
+            <button class="ghost-button" type="button" id="hideFetchForm">取消</button>
+          </form>
+
+          <div class="split">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Game ID</th>
+                    <th>玩家</th>
+                    <th>局数</th>
+                    <th>大小</th>
+                    <th>更新时间</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="paipusTable"></tbody>
+              </table>
+            </div>
+            <aside class="detail-panel" id="paipuDetail">
+              <div class="empty">选择一个牌谱</div>
+            </aside>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="view-analysis">
+        <section class="panel">
+          <header class="panel-header">
+            <h2>牌谱分析</h2>
+            <select id="analysisFile"></select>
+          </header>
+
+          <div class="analysis-layout">
+            <aside class="round-list" id="roundList"></aside>
+            <section class="round-detail">
+              <div id="roundResult" class="empty">选择一局</div>
+
+              <form class="turn-form" id="turnForm">
+                <label>
+                  模式
+                  <select id="turnMode">
+                    <option value="global">全桌巡目</option>
+                    <option value="seat_local">玩家摸打</option>
+                  </select>
+                </label>
+                <label>
+                  巡目
+                  <input id="turnNumber" type="number" min="1" value="1" />
+                </label>
+                <label>
+                  座位
+                  <select id="turnSeat">
+                    <option value="-1">无</option>
+                  </select>
+                </label>
+                <label>
+                  节点
+                  <select id="turnPhase">
+                    <option value="discard">打牌后</option>
+                    <option value="draw">摸牌后</option>
+                  </select>
+                </label>
+                <button class="primary-button" type="submit">查看</button>
+              </form>
+
+              <div id="turnState"></div>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

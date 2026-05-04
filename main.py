@@ -8,6 +8,7 @@ from .modules.analysis.mahjong_utils import PaiAnalyzer
 from .modules.wordle.mahjong_wordle import MahjongWordle
 from .modules.wordle.multi_mahjong_wordle import MultiMahjongWordle
 from .modules.review import PaipuAnalysisService, ReviewService
+from .modules.webui import MajsoulWebUIApi
 from .utils.message_formatter import MahjongFormatter
 from .utils.generate_hands import generate_valid_hands
 from .modules.wordle.data_loader import MahjongDataLoader
@@ -56,6 +57,8 @@ class MajsoulPlugin(Star):
             config=self.config,
         )
         self.paipu_analysis = PaipuAnalysisService(self.review_service)
+        self.webui_api = MajsoulWebUIApi(self)
+        self.webui_api.register(context)
 
     def ensure_directories(self):
         """确保必要的目录存在"""
