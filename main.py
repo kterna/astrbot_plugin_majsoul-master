@@ -20,7 +20,7 @@ import json
 import asyncio
 from pathlib import Path
 
-@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.5.3")
+@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.6.0")
 class MajsoulPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
