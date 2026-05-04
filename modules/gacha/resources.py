@@ -9,10 +9,9 @@ import time
 logger = logging.getLogger(__name__)
 
 class ResourceManager:
-    def __init__(self, data_dir: str):
+    def __init__(self, data_dir: str, resources_dir: str = None):
         self.data_dir = data_dir
-        # 统一使用data/resources作为资源目录
-        self.resources_dir = os.path.join(data_dir, "resources")
+        self.resources_dir = resources_dir or os.path.join(data_dir, "resources")
         self.pools_config_path = os.path.join(data_dir, "modules", "gacha", "pools.json")
         self.group_pools_path = os.path.join(data_dir, "modules", "gacha", "group_pools.json")
         self._temp_dir = os.path.join(os.path.dirname(self.resources_dir), "temp")
@@ -27,6 +26,24 @@ class ResourceManager:
         self.pools_config = self._load_pools_config()
         self.group_pools = self._load_group_pools()
         self.available_resources = self._load_available_resources()
+
+    def reload(self) -> None:
+        """重新扫描资源目录。"""
+        self.available_resources = self._load_available_resources()
+
+    def has_required_resources(self) -> bool:
+        """检查抽卡绘图所需的外置资源是否已安装。"""
+        required_dirs = ["person", "decoration", "gift", "jades", "background"]
+        return all(self._dir_has_images(os.path.join(self.resources_dir, name)) for name in required_dirs)
+
+    def _dir_has_images(self, dir_path: str) -> bool:
+        if not os.path.isdir(dir_path):
+            return False
+        for root, _dirs, files in os.walk(dir_path):
+            for file in files:
+                if file.lower().endswith((".jpg", ".png", ".jpeg", ".gif")):
+                    return True
+        return False
 
     def _init_directories(self) -> None:
         """初始化所有必要的目录"""
@@ -312,4 +329,4 @@ class ResourceManager:
                     logger.warning(f"删除临时文件失败: {file}, 错误: {e}")
                     
         except Exception as e:
-            logger.error(f"清理临时文件时出错: {e}") 
+            logger.error(f"清理临时文件时出错: {e}")

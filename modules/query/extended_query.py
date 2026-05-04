@@ -7,6 +7,7 @@ import urllib.parse
 from datetime import datetime
 from functools import wraps
 from .player_tag import PlayerTagAnalyzer
+from ...utils.level import MajsoulLevel, level_id_to_tag, level_id_to_display
 
 # 类型别名
 GameMode = Literal["3", "4"]
@@ -58,6 +59,24 @@ GAME_MODES = {
     ("2", False, "3"): "23", # 玉东
     ("3", False, "3"): "25"  # 王座东
 }
+
+
+def encode_account_id2(account_id: int) -> int:
+    p = 6139246 ^ account_id
+    h_mask = 67108863
+    s = p & ~h_mask
+    z = p & h_mask
+    for _ in range(5):
+        z = ((511 & z) << 17) | (z >> 9)
+    return z + s + 10000000
+
+
+def extract_game_uuid(record: Dict[str, Any]) -> str:
+    for key in ("uuid", "game_uuid", "gameId", "id", "record_id"):
+        value = record.get(key)
+        if value:
+            return str(value)
+    return ""
 
 class APIError(Exception):
     """API错误"""
@@ -142,6 +161,13 @@ class MajsoulAPI:
         default_key = ("1", True, mode)  # 默认为对应模式的金之间南场
         return GAME_MODES.get(key, GAME_MODES[default_key])
 
+    def _format_mode_label(self, room_level: RoomLevel, is_south: bool, mode: GameMode = DEFAULT_MODE) -> str:
+        """格式化模式显示文本（如：三人玉之间南场）"""
+        room_name = ROOM_NAMES.get(room_level, "全部场次")
+        player_count = "四人" if mode == "4" else "三人"
+        direction = "南场" if is_south else "东场"
+        return f"{player_count}{room_name}{direction}"
+
     async def get_player_info(self, nickname: str, mode: GameMode) -> JsonDict:
         """获取玩家信息"""
         encoded_nickname = urllib.parse.quote(nickname)
@@ -152,12 +178,18 @@ class MajsoulAPI:
         return result[0]
 
     @handle_api_error
+    async def search_player(self, nickname: str, mode: GameMode = DEFAULT_MODE) -> str:
+        """搜索玩家是否存在，用于绑定验证"""
+        player = await self.get_player_info(nickname, mode)
+        return f"找到玩家：{player.get('nickname', nickname)}"
+
+    @handle_api_error
     async def query_stats(self, nickname: str, mode: GameMode = DEFAULT_MODE, 
                          room_level: RoomLevel = DEFAULT_ROOM, is_south: bool = DEFAULT_DIRECTION) -> str:
         """查询玩家战绩统计"""
         player = await self.get_player_info(nickname, mode)
         game_mode = self._get_game_mode(room_level, is_south, mode)
-        current_timestamp = int(datetime.now().timestamp())
+        current_timestamp = int(datetime.now().timestamp() * 1000)
         
         url = f"{self._get_api_url(mode)}/player_stats/{player['id']}/{START_TIME}/{current_timestamp}?mode={game_mode}"
         stats = await self.request(url)
@@ -166,58 +198,60 @@ class MajsoulAPI:
         tag_data = await self.request(tag_url)
         tag = PlayerTagAnalyzer().analyze_stats(tag_data)
 
-        return self.format_stats(stats, room_level, mode, nickname, tag)
+        return self.format_stats(stats, room_level, is_south, mode, nickname, tag)
 
     @handle_api_error
-    async def query_records(self, nickname: str, mode: GameMode = DEFAULT_MODE, limit: int = DEFAULT_LIMIT, is_south: bool = DEFAULT_DIRECTION) -> str:
+    async def query_records(self, nickname: str, mode: GameMode = DEFAULT_MODE, limit: int = DEFAULT_LIMIT, room_level: RoomLevel = DEFAULT_ROOM, is_south: bool = DEFAULT_DIRECTION) -> str:
         """查询玩家对局记录"""
         player = await self.get_player_info(nickname, mode)
-        current_timestamp = int(datetime.now().timestamp())
-        game_mode = self._get_game_mode("1", is_south, mode)  # 使用传入的场风参数
+        player_id = int(player.get("id", 0))
+        current_timestamp = int(datetime.now().timestamp() * 1000)
+        game_mode = self._get_game_mode(room_level, is_south, mode)  # 使用传入的场风参数
         
-        url = f"{self._get_api_url(mode)}/player_records/{player['id']}/{START_TIME}/{current_timestamp}?limit={limit}&mode={game_mode}"
+        url = f"{self._get_api_url(mode)}/player_records/{player['id']}/{current_timestamp}/{START_TIME}?limit={limit}&mode={game_mode}&descending=true"
         records = await self.request(url)
         
         if not records or not isinstance(records, list):
             raise APIError(-1)
             
-        return self.format_records(records, mode)
+        return self.format_records(records, room_level, is_south, mode, player_id)
 
     @handle_api_error
     async def query_extended_stats(self, nickname: str, mode: GameMode, room_level: RoomLevel, is_south: bool) -> str:
         """查询玩家详细战绩统计"""
         player = await self.get_player_info(nickname, mode)
         game_mode = self._get_game_mode(room_level, is_south, mode)
-        current_timestamp = int(datetime.now().timestamp())
+        current_timestamp = int(datetime.now().timestamp() * 1000)
         
         url = f"{self._get_api_url(mode)}/player_extended_stats/{player['id']}/1262304000000/{current_timestamp}?mode={game_mode}"
         data = await self.request(url)
         
-        room_name = ROOM_NAMES.get(room_level, "全部场次")
-        mode_name = "四麻" if mode == "4" else "三麻"
+        mode_label = self._format_mode_label(room_level, is_south, mode)
         stats_text = [
-            f"【{room_name} {mode_name}详细统计】",
+            f"【{mode_label}详细统计】",
             f"玩家：{nickname}",
+            f"模式：{mode_label}",
             "",
             self.format_extended_stats(data)
         ]
         
         return "\n".join(stats_text)
 
-    def format_stats(self, stats: Dict, room_level: str, mode: str, nickname: str, tag: List[str]) -> str:
+    def format_stats(self, stats: Dict, room_level: RoomLevel, is_south: bool, mode: GameMode, nickname: str, tag: List[str]) -> str:
         """格式化统计数据"""
         try:
             if not stats:
                 return "数据不完整"
                 
-            room_name = ROOM_NAMES.get(room_level, "全部场次")
+            mode_label = self._format_mode_label(room_level, is_south, mode)
             rank_rates = stats.get("rank_rates", [])
             rank_avg_score = stats.get("rank_avg_score", [])
             
             # 基础信息
             lines = [
-                f"【{room_name} {'四麻' if mode == '4' else '三麻'}统计】",
+                f"【{mode_label}统计】",
                 f"玩家: {nickname}",
+                f"模式: {mode_label}",
                 f"总场次: {stats.get('count', 0)}",
                 f"平均顺位: {stats.get('avg_rank', 0):.2f}",
                 f"飞人率: {stats.get('negative_rate', 0) * 100:.1f}%",
@@ -239,14 +273,25 @@ class MajsoulAPI:
             
             # 如果有段位信息
             if "level" in stats:
-                level = stats["level"]
-                max_level = stats.get("max_level", {})
+                level_data = stats["level"]
+                max_level_data = stats.get("max_level", {})
+
+                level_id = level_data.get("id", 0)
+                level_score = level_data.get("score", 0)
+                level_delta = level_data.get("delta", 0)
+                max_level_id = max_level_data.get("id", 0)
+                max_level_score = max_level_data.get("score", 0)
+
+                # 使用 MajsoulLevel 转换段位信息
+                current_display = level_id_to_display(level_id, level_score) if level_id else str(level_score)
+                max_display = level_id_to_display(max_level_id, max_level_score) if max_level_id else str(max_level_score)
+
                 lines.extend([
                     "",
                     "【段位信息】",
-                    f"当前段位分数: {level.get('score', 0)}",
-                    f"最近变化: {level.get('delta', 0)}",
-                    f"最高段位分数: {max_level.get('score', 0)}"
+                    f"当前段位: {current_display}",
+                    f"最近变化: {level_delta:+d}",
+                    f"最高段位: {max_display}"
                 ])
             
             return "\n".join(lines)
@@ -254,11 +299,20 @@ class MajsoulAPI:
         except Exception as e:
             return "格式化数据失败"
             
-    def format_records(self, records: List[Dict], mode: str) -> str:
+    def format_records(
+        self,
+        records: List[Dict],
+        room_level: RoomLevel,
+        is_south: bool,
+        mode: GameMode,
+        player_id: int = 0,
+    ) -> str:
         """格式化对局记录
         
         Args:
             records: 对局记录列表
+            room_level: 房间等级
+            is_south: 是否南场
             mode: 游戏模式 ("3"=三麻, "4"=四麻)
             
         Returns:
@@ -267,8 +321,9 @@ class MajsoulAPI:
         try:
             if not records:
                 return "暂无对局记录"
-                
-            lines = [f"【最近{'四麻' if mode == '4' else '三麻'}对局记录】"]
+
+            mode_label = self._format_mode_label(room_level, is_south, mode)
+            lines = [f"【最近{mode_label}对局记录】", f"模式: {mode_label}"]
             
             for record in records:
                 # 获取基本信息
@@ -289,9 +344,18 @@ class MajsoulAPI:
                 
                 # 显示玩家信息
                 for i, player in enumerate(players, 1):
-                    level_str = f"(Lv.{player['level']//100:d})" if "level" in player else ""
+                    level_str = f"({level_id_to_tag(player['level'])})" if "level" in player else ""
                     score_str = f"{player.get('score', 0):+d}"
                     lines.append(f"  {i}位 {player['nickname']}{level_str} {score_str}")
+
+                game_uuid = extract_game_uuid(record)
+                if game_uuid:
+                    paipu_id = game_uuid
+                    if player_id > 0:
+                        encoded = encode_account_id2(player_id)
+                        paipu_id = f"{game_uuid}_a{encoded}"
+                    review_url = f"https://game.maj-soul.com/1/?paipu={paipu_id}"
+                    lines.append(f"/雀魂review {review_url}")
                 
                 lines.append("---")
                 
@@ -419,19 +483,21 @@ class MajsoulQuery:
     async def close(self) -> None:
         """关闭API连接"""
         await self.api.close()
-        
+
+    async def search_player(self, nickname: str, mode: GameMode = DEFAULT_MODE) -> Tuple[bool, str]:
+        """Search player by nickname for bind validation."""
+        return await self.api.search_player(nickname, mode)
+
     async def query_stats(self, nickname: str, mode: GameMode = DEFAULT_MODE,
                          room_level: RoomLevel = DEFAULT_ROOM, is_south: bool = DEFAULT_DIRECTION) -> Tuple[bool, str]:
         """查询玩家战绩统计"""
         return await self.api.query_stats(nickname, mode, room_level, is_south)
         
     async def query_records(self, nickname: str, mode: GameMode = DEFAULT_MODE,
-                          limit: int = DEFAULT_LIMIT) -> Tuple[bool, str]:
+                          limit: int = DEFAULT_LIMIT, room_level: RoomLevel = DEFAULT_ROOM, is_south: bool = DEFAULT_DIRECTION) -> Tuple[bool, str]:
         """查询玩家对局记录"""
         try:
-            # 从命令中解析参数
-            _, room_level, is_south, game_mode = self.parse_command_args(nickname)
-            return await self.api.query_records(nickname, game_mode, limit, is_south)
+            return await self.api.query_records(nickname, mode, limit, room_level, is_south)
         except Exception as e:
             return False, f"查询失败: {str(e)}"
 
@@ -464,19 +530,41 @@ class MajsoulQuery:
         is_south = True  # 默认南场
         
         if len(parts) > 1:
-            room_str = parts[1]
+            room_str = "".join(parts[1:]).strip()
+            room_str = room_str.replace("麻将", "")
+            room_str = room_str.replace("模式", "")
+            room_str = room_str.replace("房", "")
+            room_str = room_str.replace("场次", "")
+            room_str = room_str.replace("之间", "")
+            room_str = room_str.replace("场", "")
+
+            # 解析人数模式
             if room_str.startswith("三人"):
                 mode = "3"
-                room_str = room_str[2:]  # 去掉"三人"前缀
-                
+                room_str = room_str[2:]
+            elif room_str.startswith("四人"):
+                mode = "4"
+                room_str = room_str[2:]
+
             # 解析房间等级
-            if room_str.startswith(("金", "玉", "王")):
-                room_level = {"金": "1", "玉": "2", "王": "3"}[room_str[0]]
-                room_str = room_str[1:]  # 去掉房间等级
-                
+            if room_str.startswith("王座"):
+                room_level = "3"
+                room_str = room_str[2:]
+            elif room_str.startswith("王"):
+                room_level = "3"
+                room_str = room_str[1:]
+            elif room_str.startswith("金"):
+                room_level = "1"
+                room_str = room_str[1:]
+            elif room_str.startswith("玉"):
+                room_level = "2"
+                room_str = room_str[1:]
+
             # 解析场风
-            if room_str:
-                is_south = room_str == "南"
+            if "东" in room_str:
+                is_south = False
+            elif "南" in room_str:
+                is_south = True
                 
         return nickname, room_level, is_south, mode
         
@@ -505,7 +593,7 @@ class MajsoulQuery:
             
             # 根据原始命令类型执行不同的查询
             if "牌谱" in command:
-                return await self.api.query_records(nickname, mode, DEFAULT_LIMIT, is_south)
+                return await self.api.query_records(nickname, mode, DEFAULT_LIMIT, room_level, is_south)
             elif "详细" in command:
                 return await self.api.query_extended_stats(nickname, mode, room_level, is_south)
             else:
