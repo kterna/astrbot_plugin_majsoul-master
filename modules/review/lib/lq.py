@@ -23,44 +23,81 @@ def _raise() -> None:
     )
 
 
-class Wrapper:
+class ProtoStub:
+    """Base stub that raises if unknown attributes are accessed."""
+
     def __init__(self, *args, **kwargs):
+        self.__dict__.update(kwargs)
+
+    def __getattr__(self, name):
         _raise()
 
+
+class Wrapper(ProtoStub):
     def parse(self, *args, **kwargs):
         _raise()
 
 
-class GameDetailRecords:
-    def __init__(self, *args, **kwargs):
-        _raise()
-
+class GameDetailRecords(ProtoStub):
     def parse(self, *args, **kwargs):
         _raise()
 
 
-class ResLogin:
-    def __init__(self, *args, **kwargs):
-        _raise()
+class ResLogin(ProtoStub):
+    pass
 
 
-class ResOauth2Check:
-    def __init__(self, *args, **kwargs):
-        _raise()
+class ResOauth2Check(ProtoStub):
+    pass
 
 
-class ResCommon:
-    def __init__(self, *args, **kwargs):
-        _raise()
+class ResCommon(ProtoStub):
+    pass
 
 
-class ResGameRecord:
-    def __init__(self, *args, **kwargs):
-        _raise()
+class ResGameRecord(ProtoStub):
+    pass
 
 
-class RecordGame:
+class RecordGame(ProtoStub):
     """Placeholder type used by model.py when protocol definitions are missing."""
 
-    def __init__(self, *args, **kwargs):
-        _raise()
+
+class HuleInfo(ProtoStub):
+    pass
+
+
+class RecordAnGangAddGang(ProtoStub):
+    pass
+
+
+class RecordBaBei(ProtoStub):
+    pass
+
+
+class RecordChiPengGang(ProtoStub):
+    pass
+
+
+class RecordDealTile(ProtoStub):
+    pass
+
+
+class RecordDiscardTile(ProtoStub):
+    pass
+
+
+class RecordHule(ProtoStub):
+    pass
+
+
+class RecordLiuJu(ProtoStub):
+    pass
+
+
+class RecordNewRound(ProtoStub):
+    pass
+
+
+class RecordNoTile(ProtoStub):
+    pass
