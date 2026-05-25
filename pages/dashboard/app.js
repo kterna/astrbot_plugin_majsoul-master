@@ -94,6 +94,7 @@ const state = {
   selectedRound: null,
   rounds: [],
   players: [],
+  loginSubmitting: false,
 };
 
 const el = (id) => document.getElementById(id);
@@ -205,6 +206,41 @@ function showNotice(message, type = "info") {
   showNotice.timer = setTimeout(() => node.classList.add("hidden"), 4200);
 }
 
+function confirmAction(message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.innerHTML = `
+      <div class="confirm-dialog" role="dialog" aria-modal="true">
+        <h2>确认操作</h2>
+        <p>${text(message)}</p>
+        <div class="confirm-actions">
+          <button class="ghost-button" type="button" data-confirm="cancel">取消</button>
+          <button class="danger-button" type="button" data-confirm="ok">确认</button>
+        </div>
+      </div>
+    `;
+
+    function cleanup(value) {
+      overlay.remove();
+      resolve(value);
+    }
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) cleanup(false);
+      const button = event.target instanceof Element ? event.target.closest("button[data-confirm]") : null;
+      if (!button) return;
+      cleanup(button.dataset.confirm === "ok");
+    });
+    overlay.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") cleanup(false);
+    });
+
+    document.body.appendChild(overlay);
+    overlay.querySelector("[data-confirm='cancel']").focus();
+  });
+}
+
 function formatBytes(value) {
   const n = Number(value || 0);
   if (n < 1024) return `${n} B`;
@@ -291,8 +327,8 @@ function renderAccounts() {
       <td>${text(account.updated_at || "-")}</td>
       <td>
         <div class="actions">
-          <button class="ghost-button" data-action="test-account" data-id="${account.index}">测试</button>
-          <button class="danger-button" data-action="delete-account" data-id="${account.index}">删除</button>
+          <button class="ghost-button" data-action="test-account" data-id="${text(account.uid || account.index)}">测试</button>
+          <button class="danger-button" data-action="delete-account" data-id="${text(account.uid || account.index)}">删除</button>
         </div>
       </td>
     </tr>
@@ -487,6 +523,11 @@ function bindEvents() {
   el("hideLoginForm").addEventListener("click", () => el("loginForm").classList.add("hidden"));
   el("loginForm").addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (state.loginSubmitting) return;
+    state.loginSubmitting = true;
+    const submitButton = el("loginSubmit");
+    submitButton.disabled = true;
+    submitButton.textContent = "验证中";
     try {
       await apiPost("accounts/login", { username: el("loginUsername").value.trim(), password: el("loginPassword").value });
       el("loginPassword").value = "";
@@ -495,6 +536,10 @@ function bindEvents() {
       await refreshAll();
     } catch (error) {
       showNotice(error.message, "error");
+    } finally {
+      state.loginSubmitting = false;
+      submitButton.disabled = false;
+      submitButton.textContent = "登录验证";
     }
   });
 
@@ -507,7 +552,7 @@ function bindEvents() {
         await apiPost("accounts/test", { identifier: id });
         showNotice("账号测试完成");
       }
-      if (button.dataset.action === "delete-account" && confirm("删除这个账号？")) {
+      if (button.dataset.action === "delete-account" && await confirmAction("删除这个账号？")) {
         await apiPost("accounts/delete", { identifier: id });
         showNotice("账号已删除");
       }
@@ -544,7 +589,7 @@ function bindEvents() {
     try {
       if (button.dataset.action === "open-paipu") await openPaipu(fileName);
       if (button.dataset.action === "download-paipu") await bridge.download("paipus/download", { file_name: fileName }, fileName);
-      if (button.dataset.action === "delete-paipu" && confirm("删除这个牌谱缓存？")) {
+      if (button.dataset.action === "delete-paipu" && await confirmAction("删除这个牌谱缓存？")) {
         await apiPost("paipus/delete", { file_name: fileName });
         state.selectedPaipu = null;
         el("paipuDetail").innerHTML = `<div class="empty">选择一个牌谱</div>`;

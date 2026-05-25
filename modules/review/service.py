@@ -116,6 +116,21 @@ class ReviewService:
                 f"[majsoul-review] 国服登录失败 username={username}: {exc.__class__.__name__}: {detail}",
                 exc_info=True,
             )
+            if "code=1002" in detail:
+                return (
+                    False,
+                    "登录失败: 账号或密码校验失败。这里需要填写雀魂登录账号/邮箱/手机号，"
+                    "不是游戏昵称；请同时确认密码正确。原始错误: "
+                    f"{exc.__class__.__name__}: {detail}",
+                )
+            if "code=151" in detail:
+                return (
+                    False,
+                    "登录失败: 雀魂服务端拒绝了当前 Web 客户端版本。插件会优先从官方"
+                    "网页登录页读取 Unity WebGL 版本；如果仍然出现 151，说明官方登录"
+                    "包可能还有新的校验字段需要继续适配。原始错误: "
+                    f"{exc.__class__.__name__}: {detail}",
+                )
             return False, f"登录失败: {exc.__class__.__name__}: {detail}"
         finally:
             if conn is not None:
