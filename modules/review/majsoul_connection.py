@@ -5,6 +5,7 @@ import hmac
 import inspect
 import json
 import random
+import re
 import uuid
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
@@ -16,7 +17,7 @@ from astrbot.api import logger
 from msgspec import ValidationError, convert
 
 from .codec import MajsoulProtoCodec
-from .constants import URL_BASE
+from .constants import URL_BASE, USER_AGENT
 from .lib import lq as liblq
 from .model import (
     MjsLog,
@@ -29,10 +30,14 @@ from .model import (
 )
 from .remote import decode_account_id2, decode_log_id
 from .tenhou.parser import MajsoulPaipuParser
-from .utils import get_res
+from .utils import HTTPX_CLIENT, get_res
 
 WS_OPEN_TIMEOUT_SEC = 12
 RPC_TIMEOUT_SEC = 20
+CLIENT_TAG = "cn"
+DEFAULT_CURRENCY_PLATFORMS = [2]
+UNITY_WEB_VERSION_RE = re.compile(r"WebGL-release-([0-9]+(?:\.[0-9]+)+)")
+UNITY_PRODUCT_VERSION_RE = re.compile(r"productVersion\s*:\s*[\"']([^\"']+)[\"']")
 ProgressCallback = Callable[[str], Optional[Awaitable[None]]]
 
 
@@ -43,6 +48,73 @@ async def _notify(progress_cb: Optional[ProgressCallback], message: str) -> None
     result = progress_cb(message)
     if inspect.isawaitable(result):
         await result
+
+
+def _error_summary(error) -> str:
+    if error is None:
+        return "none"
+    return (
+        f"code={getattr(error, 'code', 0)} "
+        f"u32={list(getattr(error, 'u32_params', []) or [])} "
+        f"str={list(getattr(error, 'str_params', []) or [])} "
+        f"json={getattr(error, 'json_param', '')!r} "
+        f"level={getattr(error, 'level', 0)}"
+    )
+
+
+def _client_device_info() -> dict:
+    return {
+        "platform": "pc",
+        "hardware": "pc",
+        "os": "windows",
+        "os_version": "win10",
+        "is_browser": True,
+        "software": "Chrome",
+        "sale_platform": "web",
+        "screen_width": 1920,
+        "screen_height": 1080,
+        "user_agent": USER_AGENT,
+        "screen_type": 1,
+    }
+
+
+def _legacy_client_version_string(version_info: MajsoulVersionInfo) -> str:
+    return "web-" + version_info.version.replace(".w", "")
+
+
+async def _fetch_login_client_version_string(
+    url_base: str,
+    version_info: MajsoulVersionInfo,
+) -> tuple[str, str]:
+    legacy_version = _legacy_client_version_string(version_info)
+    index_url = f"{url_base.rstrip('/')}/1/"
+    try:
+        HTTPX_CLIENT.headers["Referer"] = url_base
+        resp = await HTTPX_CLIENT.get(index_url)
+        resp.raise_for_status()
+        html = resp.text
+    except Exception as exc:
+        logger.debug(
+            "[majsoul-review] web client version fetch failed: "
+            f"url={index_url} fallback={legacy_version} error={exc.__class__.__name__}: {exc}"
+        )
+        return legacy_version, "version_json"
+
+    product_match = UNITY_PRODUCT_VERSION_RE.search(html)
+    build_match = UNITY_WEB_VERSION_RE.search(html)
+    unity_version = ""
+    if product_match and product_match.group(1).strip():
+        unity_version = product_match.group(1).strip()
+    elif build_match and build_match.group(1).strip():
+        unity_version = build_match.group(1).strip()
+    if not unity_version:
+        logger.debug(
+            "[majsoul-review] web client version not found in index: "
+            f"url={index_url} fallback={legacy_version}"
+        )
+        return legacy_version, "version_json"
+
+    return f"web-{unity_version}", "unity_index"
 
 
 def process_dict(obj):
@@ -67,6 +139,7 @@ class MajsoulConnection:
         endpoint: str,
         codec: MajsoulProtoCodec,
         version_info: MajsoulVersionInfo,
+        client_version_string: str = "",
     ):
         self._endpoint = endpoint
         self._codec = codec
@@ -76,7 +149,11 @@ class MajsoulConnection:
         self._req_events: dict[int, asyncio.Event] = {}
         self._res: dict[int, MajsoulDecodedMessage] = {}
 
-        self.client_version_string = "web-" + version_info.version.replace(".w", "")
+        self.client_version_string = (
+            client_version_string or _legacy_client_version_string(version_info)
+        )
+        self.client_tag = CLIENT_TAG
+        self.currency_platforms = list(DEFAULT_CURRENCY_PLATFORMS)
         self.random_key = str(uuid.uuid4())
 
         self.account_id = 0
@@ -84,8 +161,15 @@ class MajsoulConnection:
         self.access_token = ""
 
     async def connect(self):
+        logger.debug(
+            "[majsoul-review] websocket connect meta: "
+            f"endpoint={self._endpoint} origin={URL_BASE.rstrip('/')} "
+            f"user_agent_set={bool(USER_AGENT)}"
+        )
         self._ws = await websockets.client.connect(
             self._endpoint,
+            origin=URL_BASE.rstrip("/"),
+            user_agent_header=USER_AGENT,
             open_timeout=WS_OPEN_TIMEOUT_SEC,
             close_timeout=5,
         )
@@ -170,6 +254,12 @@ class MajsoulConnection:
         version_info: MajsoulVersionInfo,
     ):
         password_hash = self.encode_password(password)
+        logger.debug(
+            "[majsoul-review] manual_login request meta: "
+            f"client_version_string={self.client_version_string} "
+            f"resource={version_info.version} tag={self.client_tag} "
+            f"currency_platforms={self.currency_platforms}"
+        )
         resp = cast(
             liblq.ResLogin,
             await self.rpc_call(
@@ -177,28 +267,32 @@ class MajsoulConnection:
                 {
                     "account": username,
                     "password": password_hash,
-                    "device": {
-                        "platform": "pc",
-                        "hardware": "pc",
-                        "os": "windows",
-                        "os_version": "win10",
-                        "is_browser": True,
-                        "software": "Chrome",
-                        "sale_platform": "web",
-                    },
+                    "reconnect": False,
+                    "device": _client_device_info(),
                     "random_key": self.random_key,
                     "client_version": {"resource": version_info.version},
-                    "currency_platforms": [2],
+                    "currency_platforms": self.currency_platforms,
                     "client_version_string": self.client_version_string,
                     "gen_access_token": True,
+                    "type": 0,
+                    "tag": self.client_tag,
                 },
             ),
         )
         if not resp.account_id:
-            raise ValueError("manual login failed")
+            logger.debug(
+                "[majsoul-review] manual_login failed response: "
+                f"{_error_summary(resp.error)}"
+            )
+            raise ValueError(f"manual login failed: {_error_summary(resp.error)}")
         self.account_id = resp.account_id
         self.nick_name = resp.account.nickname
         self.access_token = resp.access_token
+        logger.debug(
+            "[majsoul-review] manual_login success: "
+            f"account_id={self.account_id} nickname={self.nick_name} "
+            f"access_token_len={len(self.access_token or '')}"
+        )
         return self.account_id, self.access_token, self.nick_name
 
     async def access_token_login(
@@ -213,6 +307,10 @@ class MajsoulConnection:
                 {"type": 0, "access_token": access_token},
             ),
         )
+        logger.debug(
+            "[majsoul-review] oauth2Check response: "
+            f"has_account={resp.has_account} {_error_summary(resp.error)}"
+        )
         if not resp.has_account:
             await asyncio.sleep(1)
             resp = cast(
@@ -222,9 +320,19 @@ class MajsoulConnection:
                     {"type": 0, "access_token": access_token},
                 ),
             )
+            logger.debug(
+                "[majsoul-review] oauth2Check retry response: "
+                f"has_account={resp.has_account} {_error_summary(resp.error)}"
+            )
         if not resp.has_account:
-            raise ValueError("access token invalid")
+            raise ValueError(f"access token invalid: {_error_summary(resp.error)}")
 
+        logger.debug(
+            "[majsoul-review] oauth2Login request meta: "
+            f"client_version_string={self.client_version_string} "
+            f"resource={version_info.version} tag={self.client_tag} "
+            f"currency_platforms={self.currency_platforms}"
+        )
         resp = cast(
             liblq.ResLogin,
             await self.rpc_call(
@@ -233,26 +341,27 @@ class MajsoulConnection:
                     "type": 0,
                     "access_token": access_token,
                     "reconnect": False,
-                    "device": {
-                        "platform": "pc",
-                        "hardware": "pc",
-                        "os": "windows",
-                        "os_version": "win10",
-                        "is_browser": True,
-                        "software": "Chrome",
-                        "sale_platform": "web",
-                    },
+                    "device": _client_device_info(),
                     "random_key": self.random_key,
                     "client_version": {"resource": version_info.version},
-                    "currency_platforms": [],
+                    "currency_platforms": self.currency_platforms,
                     "client_version_string": self.client_version_string,
+                    "tag": self.client_tag,
                 },
             ),
         )
         if not resp.account_id:
-            raise ValueError("oauth2 login failed")
+            logger.debug(
+                "[majsoul-review] oauth2Login failed response: "
+                f"{_error_summary(resp.error)}"
+            )
+            raise ValueError(f"oauth2 login failed: {_error_summary(resp.error)}")
         self.account_id = resp.account_id
         self.nick_name = resp.account.nickname
+        logger.debug(
+            "[majsoul-review] oauth2Login success: "
+            f"account_id={self.account_id} nickname={self.nick_name}"
+        )
 
         beat = cast(
             liblq.ResCommon,
@@ -262,7 +371,7 @@ class MajsoulConnection:
             ),
         )
         if beat.error.code:
-            raise ValueError(f"loginBeat failed: {beat}")
+            raise ValueError(f"loginBeat failed: {_error_summary(beat.error)}")
 
         self.access_token = access_token
         return self.account_id, self.access_token, self.nick_name
@@ -369,7 +478,24 @@ async def fetch_majsoul_info(
     progress_cb: Optional[ProgressCallback] = None,
 ):
     await _notify(progress_cb, "正在获取雀魂版本信息")
-    version_info = convert(await get_res(url_base, "version.json", bust_cache=True), MajsoulVersionInfo)
+    version_info = convert(
+        await get_res(url_base, "version.json", bust_cache=True),
+        MajsoulVersionInfo,
+    )
+    logger.debug(
+        "[majsoul-review] version info: "
+        f"version={version_info.version} force_version={version_info.force_version} "
+        f"code={version_info.code}"
+    )
+    client_version_string, client_version_source = (
+        await _fetch_login_client_version_string(url_base, version_info)
+    )
+    logger.debug(
+        "[majsoul-review] login client version: "
+        f"client_version_string={client_version_string} "
+        f"source={client_version_source} "
+        f"legacy={_legacy_client_version_string(version_info)}"
+    )
 
     await _notify(progress_cb, "正在获取资源版本信息")
     res_info = convert(
@@ -378,13 +504,17 @@ async def fetch_majsoul_info(
     )
 
     pb_version = res_info.res["res/proto/liqi.json"].prefix
+    config_path = f"{res_info.res['config.json'].prefix}/config.json"
+    logger.debug(
+        "[majsoul-review] resource info: "
+        f"proto_prefix={pb_version} config_path={config_path}"
+    )
     await _notify(progress_cb, "正在加载协议定义")
     pb_def = convert(
         await get_res(url_base, f"{pb_version}/res/proto/liqi.json"),
         MajsoulLiqiProto,
     )
 
-    config_path = f"{res_info.res['config.json'].prefix}/config.json"
     await _notify(progress_cb, "正在获取网关配置")
     config_obj = await get_res(url_base, config_path)
     try:
@@ -402,11 +532,16 @@ async def fetch_majsoul_info(
         raise ValueError("gateway list is empty")
 
     gateway_url = random.choice(gateways).url
+    logger.debug(
+        "[majsoul-review] gateway config: "
+        f"ip_defs={len(ip_defs)} selected_ip={getattr(ip_def, 'name', '')} "
+        f"gateway_count={len(gateways)} selected_url={gateway_url}"
+    )
     region_url = gateway_url.replace("https://", "")
     server = f"{region_url}/gateway"
 
     await _notify(progress_cb, f"网关已选择: {server}")
-    return server, pb_def, pb_version, version_info
+    return server, pb_def, pb_version, version_info, client_version_string
 
 
 async def create_connection(
@@ -415,13 +550,24 @@ async def create_connection(
     access_token: str = "",
     progress_cb: Optional[ProgressCallback] = None,
 ) -> MajsoulConnection:
-    server, pb_def, pb_version, version_info = await fetch_majsoul_info(
+    (
+        server,
+        pb_def,
+        pb_version,
+        version_info,
+        client_version_string,
+    ) = await fetch_majsoul_info(
         URL_BASE,
         progress_cb=progress_cb,
     )
 
     codec = MajsoulProtoCodec(pb_def, pb_version)
-    conn = MajsoulConnection(f"wss://{server}", codec, version_info)
+    conn = MajsoulConnection(
+        f"wss://{server}",
+        codec,
+        version_info,
+        client_version_string=client_version_string,
+    )
     try:
         await _notify(progress_cb, "正在建立 WebSocket 连接")
         await conn.connect()

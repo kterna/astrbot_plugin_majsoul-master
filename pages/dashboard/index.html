@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>雀魂管理</title>
-    <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./style.css?v=20260525-debug-delete" />
   </head>
   <body>
     <main class="app-shell">
@@ -71,9 +71,9 @@
           </header>
 
           <form class="inline-form hidden" id="loginForm">
-            <input id="loginUsername" autocomplete="username" placeholder="用户名" />
+            <input id="loginUsername" autocomplete="username" placeholder="登录账号/邮箱/手机号" />
             <input id="loginPassword" autocomplete="current-password" type="password" placeholder="密码" />
-            <button class="primary-button" type="submit">登录验证</button>
+            <button class="primary-button" type="submit" id="loginSubmit">登录验证</button>
             <button class="ghost-button" type="button" id="hideLoginForm">取消</button>
           </form>
 
@@ -183,6 +183,6 @@
       </section>
     </main>
 
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./app.js?v=20260525-debug-delete"></script>
   </body>
 </html>

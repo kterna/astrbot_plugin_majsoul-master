@@ -26,6 +26,7 @@ class MajsoulWebUIApi:
         self.error_preview_length = int(
             self.config.get("webui_error_preview_length", 240)
         )
+        self._account_login_lock = asyncio.Lock()
 
     def register(self, context: Any) -> None:
         routes: list[tuple[str, Callable, list[str], str]] = [
@@ -69,8 +70,37 @@ class MajsoulWebUIApi:
         body = await request.get_json(silent=True)
         return body if isinstance(body, dict) else {}
 
+    @staticmethod
+    def _preview(value: Any, limit: int = 160) -> str:
+        text = str(value or "").strip()
+        if len(text) <= limit:
+            return text
+        return text[:limit] + "..."
+
+    def _mask_account_ref(self, value: Any) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        if "@" in text:
+            return self.review_service.store.masked(text)
+        if len(text) > 12 and not text.isdigit():
+            return text[:4] + "***" + text[-4:]
+        return text
+
+    def _debug_api(self, action: str, **fields: Any) -> None:
+        safe_fields = {
+            key: value
+            for key, value in fields.items()
+            if value is not None and value != ""
+        }
+        if safe_fields:
+            logger.debug(f"[majsoul-webui] {action}: {safe_fields}")
+        else:
+            logger.debug(f"[majsoul-webui] {action}")
+
     async def _guarded(self, fn: Callable[[], Any]):
         if not self._enabled():
+            self._debug_api("api_blocked", reason="webui_disabled")
             return self._error("WebUI 功能已在插件配置中关闭")
         try:
             result = fn()
@@ -206,6 +236,13 @@ class MajsoulWebUIApi:
         failed_accounts = [item for item in accounts if item["last_status"] != "ok"]
         total_size = sum(int(item.get("size_bytes") or 0) for item in paipus)
         latest = max((int(item.get("modified_ts") or 0) for item in paipus), default=0)
+        self._debug_api(
+            "status",
+            accounts_total=len(accounts),
+            accounts_failed=len(failed_accounts),
+            paipus_total=len(paipus),
+            paipus_total_size_bytes=total_size,
+        )
         return self._ok(
             {
                 "plugin_name": PLUGIN_NAME,
@@ -231,7 +268,9 @@ class MajsoulWebUIApi:
         return await self._guarded(self._accounts)
 
     async def _accounts(self):
-        return self._ok({"items": await self._account_items()})
+        items = await self._account_items()
+        self._debug_api("accounts_list", count=len(items))
+        return self._ok({"items": items})
 
     async def accounts_login(self):
         return await self._guarded(self._accounts_login)
@@ -240,15 +279,46 @@ class MajsoulWebUIApi:
         payload = await self._payload()
         username = str(payload.get("username") or "").strip()
         password = str(payload.get("password") or "").strip()
-        if not username or not password:
-            return self._error("请输入用户名和密码")
-        success, message = await asyncio.wait_for(
-            self.review_service.add_cn_account(username, password),
-            timeout=self.timeout_seconds,
+        self._debug_api(
+            "accounts_login_start",
+            username=self._mask_account_ref(username),
+            password_provided=bool(password),
+            timeout_seconds=self.timeout_seconds,
         )
+        if not username or not password:
+            self._debug_api(
+                "accounts_login_rejected",
+                username=self._mask_account_ref(username),
+                reason="missing_username_or_password",
+            )
+            return self._error("请输入用户名和密码")
+        if self._account_login_lock.locked():
+            self._debug_api(
+                "accounts_login_rejected",
+                username=self._mask_account_ref(username),
+                reason="login_already_running",
+            )
+            return self._error("已有账号登录验证正在进行，请稍后")
+        async with self._account_login_lock:
+            success, message = await asyncio.wait_for(
+                self.review_service.add_cn_account(username, password),
+                timeout=self.timeout_seconds,
+            )
         if not success:
+            self._debug_api(
+                "accounts_login_failed",
+                username=self._mask_account_ref(username),
+                message=self._truncate_error(message),
+            )
             return self._error(message)
-        return self._ok({"accounts": await self._account_items()}, message)
+        accounts = await self._account_items()
+        self._debug_api(
+            "accounts_login_success",
+            username=self._mask_account_ref(username),
+            accounts_total=len(accounts),
+            message=message,
+        )
+        return self._ok({"accounts": accounts}, message)
 
     async def accounts_delete(self):
         return await self._guarded(self._accounts_delete)
@@ -256,27 +326,69 @@ class MajsoulWebUIApi:
     async def _accounts_delete(self):
         payload = await self._payload()
         identifier = str(payload.get("identifier") or "").strip()
+        self._debug_api(
+            "accounts_delete_start",
+            identifier=self._mask_account_ref(identifier),
+        )
         if not identifier:
+            self._debug_api("accounts_delete_rejected", reason="missing_identifier")
             return self._error("请输入要删除的账号序号、uid 或用户名")
         success, message = await self.review_service.remove_account(identifier)
         if not success:
+            self._debug_api(
+                "accounts_delete_failed",
+                identifier=self._mask_account_ref(identifier),
+                message=message,
+            )
             return self._error(message)
-        return self._ok({"accounts": await self._account_items()}, message)
+        accounts = await self._account_items()
+        self._debug_api(
+            "accounts_delete_success",
+            identifier=self._mask_account_ref(identifier),
+            accounts_total=len(accounts),
+        )
+        return self._ok({"accounts": accounts}, message)
 
     async def accounts_test(self):
         return await self._guarded(self._accounts_test)
 
     async def _accounts_test(self):
         payload = await self._payload()
-        account = await self._resolve_account(payload.get("identifier") or "")
+        identifier = payload.get("identifier") or ""
+        self._debug_api(
+            "accounts_test_start",
+            identifier=self._mask_account_ref(identifier),
+            timeout_seconds=self.timeout_seconds,
+        )
+        account = await self._resolve_account(identifier)
+        self._debug_api(
+            "accounts_test_resolved",
+            uid=account.uid,
+            username=self._mask_account_ref(account.username),
+            nickname=account.nickname,
+            has_token=bool(account.token),
+        )
         conn = None
         try:
             if account.token:
-                conn = await asyncio.wait_for(
-                    create_connection(access_token=account.token),
-                    timeout=self.timeout_seconds,
-                )
+                self._debug_api("accounts_test_login_method", uid=account.uid, method="access_token")
+                try:
+                    conn = await asyncio.wait_for(
+                        create_connection(access_token=account.token),
+                        timeout=self.timeout_seconds,
+                    )
+                except Exception as token_exc:
+                    self._debug_api(
+                        "accounts_test_token_failed_fallback_password",
+                        uid=account.uid,
+                        error=f"{token_exc.__class__.__name__}: {self._truncate_error(str(token_exc))}",
+                    )
+                    conn = await asyncio.wait_for(
+                        create_connection(username=account.username, password=account.password),
+                        timeout=self.timeout_seconds,
+                    )
             else:
+                self._debug_api("accounts_test_login_method", uid=account.uid, method="password")
                 conn = await asyncio.wait_for(
                     create_connection(username=account.username, password=account.password),
                     timeout=self.timeout_seconds,
@@ -287,12 +399,25 @@ class MajsoulWebUIApi:
                 conn.nick_name,
             )
             await self.review_service.store.update_status(account.uid, "ok", "")
-            return self._ok({"accounts": await self._account_items()}, "账号测试成功")
+            accounts = await self._account_items()
+            self._debug_api(
+                "accounts_test_success",
+                uid=account.uid,
+                account_id=conn.account_id,
+                nickname=conn.nick_name,
+                token_refreshed=bool(conn.access_token),
+            )
+            return self._ok({"accounts": accounts}, "账号测试成功")
         except Exception as exc:
             await self.review_service.store.update_status(
                 account.uid,
                 "failed",
                 str(exc),
+            )
+            self._debug_api(
+                "accounts_test_failed",
+                uid=account.uid,
+                error=f"{exc.__class__.__name__}: {self._truncate_error(str(exc))}",
             )
             return self._error(f"账号测试失败: {exc}")
         finally:
@@ -305,6 +430,7 @@ class MajsoulWebUIApi:
         payload = await self._payload()
         keyword = str(payload.get("q") or "").strip().lower()
         items = self._read_paipu_briefs()
+        total = len(items)
         if keyword:
             items = [
                 item
@@ -313,6 +439,12 @@ class MajsoulWebUIApi:
                 or keyword in item["game_id"].lower()
                 or any(keyword in str(player).lower() for player in item["players"])
             ]
+        self._debug_api(
+            "paipus_list",
+            keyword=self._preview(keyword, 80),
+            total=total,
+            returned=len(items),
+        )
         return self._ok({"items": items})
 
     async def paipus_fetch(self):
@@ -321,18 +453,38 @@ class MajsoulWebUIApi:
     async def _paipus_fetch(self):
         payload = await self._payload()
         source = str(payload.get("source") or "").strip()
+        parsed_game_id = self.review_service.parse_game_id(source) if source else None
+        self._debug_api(
+            "paipus_fetch_start",
+            source=self._preview(source),
+            parsed_game_id=parsed_game_id,
+            timeout_seconds=self.timeout_seconds,
+        )
         if not source:
+            self._debug_api("paipus_fetch_rejected", reason="missing_source")
             return self._error("请输入牌谱 URL 或 paipu_id")
         success, message, fetch_result = await asyncio.wait_for(
             self.review_service.fetch_raw_paipu(source),
             timeout=self.timeout_seconds,
         )
         if not success or fetch_result is None:
+            self._debug_api(
+                "paipus_fetch_failed",
+                parsed_game_id=parsed_game_id,
+                message=self._truncate_error(message),
+            )
             return self._error(message)
         rounds = self.paipu_analysis.list_rounds_from_raw(
             fetch_result.raw,
             game_id=fetch_result.game_id,
             raw_json_path=fetch_result.raw_path_relative,
+        )
+        self._debug_api(
+            "paipus_fetch_success",
+            game_id=fetch_result.game_id,
+            file_name=fetch_result.raw_path.name,
+            cache_hit=fetch_result.cache_hit,
+            round_count=len(rounds) if isinstance(rounds, list) else None,
         )
         return self._ok(
             {
@@ -350,7 +502,9 @@ class MajsoulWebUIApi:
 
     async def _paipus_detail(self):
         payload = await self._payload()
-        path = self._safe_paipu_path(str(payload.get("file_name") or ""))
+        file_name = str(payload.get("file_name") or "")
+        self._debug_api("paipus_detail_start", file_name=self._preview(file_name))
+        path = self._safe_paipu_path(file_name)
         raw = self._load_raw(path)
         brief = self._brief_from_raw(path, raw)
         rounds = self.paipu_analysis.list_rounds_from_raw(
@@ -358,14 +512,29 @@ class MajsoulWebUIApi:
             game_id=brief["game_id"],
             raw_json_path=brief["raw_json_path"],
         )
+        self._debug_api(
+            "paipus_detail_success",
+            file_name=path.name,
+            game_id=brief["game_id"],
+            round_count=len(rounds) if isinstance(rounds, list) else None,
+            size_bytes=brief["size_bytes"],
+        )
         return self._ok({"paipu": brief, "rounds": rounds})
 
     async def paipus_download(self):
         if not self._enabled():
+            self._debug_api("paipus_download_blocked", reason="webui_disabled")
             return self._error("WebUI 功能已在插件配置中关闭")
         try:
             payload = await self._payload()
-            path = self._safe_paipu_path(str(payload.get("file_name") or ""))
+            file_name = str(payload.get("file_name") or "")
+            self._debug_api("paipus_download_start", file_name=self._preview(file_name))
+            path = self._safe_paipu_path(file_name)
+            self._debug_api(
+                "paipus_download_success",
+                file_name=path.name,
+                size_bytes=path.stat().st_size,
+            )
             try:
                 return await send_file(
                     str(path),
@@ -381,6 +550,10 @@ class MajsoulWebUIApi:
                     mimetype="application/json",
                 )
         except Exception as exc:
+            self._debug_api(
+                "paipus_download_failed",
+                error=f"{exc.__class__.__name__}: {self._truncate_error(str(exc))}",
+            )
             logger.error(f"[majsoul-webui] 下载牌谱失败: {exc}", exc_info=True)
             return self._error(f"下载失败: {exc}")
 
@@ -389,9 +562,17 @@ class MajsoulWebUIApi:
 
     async def _paipus_delete(self):
         payload = await self._payload()
-        path = self._safe_paipu_path(str(payload.get("file_name") or ""))
+        file_name = str(payload.get("file_name") or "")
+        self._debug_api("paipus_delete_start", file_name=self._preview(file_name))
+        path = self._safe_paipu_path(file_name)
         path.unlink()
-        return self._ok({"items": self._read_paipu_briefs()}, "牌谱缓存已删除")
+        items = self._read_paipu_briefs()
+        self._debug_api(
+            "paipus_delete_success",
+            file_name=path.name,
+            remaining=len(items),
+        )
+        return self._ok({"items": items}, "牌谱缓存已删除")
 
     async def _analysis_raw_payload(self) -> tuple[dict[str, Any], Path, dict[str, Any]]:
         payload = await self._payload()
@@ -404,57 +585,97 @@ class MajsoulWebUIApi:
 
     async def _analysis_rounds(self):
         _, path, raw = await self._analysis_raw_payload()
-        return self._ok(
-            self.paipu_analysis.list_rounds_from_raw(
-                raw,
-                game_id=self._game_id_from_path(path, raw),
-                raw_json_path=self._raw_relative_path(path),
-            )
+        game_id = self._game_id_from_path(path, raw)
+        result = self.paipu_analysis.list_rounds_from_raw(
+            raw,
+            game_id=game_id,
+            raw_json_path=self._raw_relative_path(path),
         )
+        self._debug_api(
+            "analysis_rounds",
+            file_name=path.name,
+            game_id=game_id,
+            round_count=len(result) if isinstance(result, list) else None,
+        )
+        return self._ok(result)
 
     async def analysis_round_result(self):
         return await self._guarded(self._analysis_round_result)
 
     async def _analysis_round_result(self):
         payload, path, raw = await self._analysis_raw_payload()
-        return self._ok(
-            self.paipu_analysis.get_round_result_from_raw(
-                raw,
-                round_selector=str(payload.get("round_selector") or ""),
-                game_id=self._game_id_from_path(path, raw),
-                raw_json_path=self._raw_relative_path(path),
-            )
+        round_selector = str(payload.get("round_selector") or "")
+        game_id = self._game_id_from_path(path, raw)
+        result = self.paipu_analysis.get_round_result_from_raw(
+            raw,
+            round_selector=round_selector,
+            game_id=game_id,
+            raw_json_path=self._raw_relative_path(path),
         )
+        self._debug_api(
+            "analysis_round_result",
+            file_name=path.name,
+            game_id=game_id,
+            round_selector=round_selector,
+            result_type=type(result).__name__,
+        )
+        return self._ok(result)
 
     async def analysis_turn_state(self):
         return await self._guarded(self._analysis_turn_state)
 
     async def _analysis_turn_state(self):
         payload, path, raw = await self._analysis_raw_payload()
-        return self._ok(
-            self.paipu_analysis.get_round_turn_state_from_raw(
-                raw,
-                round_selector=str(payload.get("round_selector") or ""),
-                turn_mode=str(payload.get("turn_mode") or "global"),
-                turn_number=int(payload.get("turn_number") or 1),
-                seat=int(payload.get("seat") if str(payload.get("seat", "")).strip() else -1),
-                phase=str(payload.get("phase") or "discard"),
-                game_id=self._game_id_from_path(path, raw),
-                raw_json_path=self._raw_relative_path(path),
-            )
+        round_selector = str(payload.get("round_selector") or "")
+        turn_mode = str(payload.get("turn_mode") or "global")
+        turn_number = int(payload.get("turn_number") or 1)
+        seat = int(payload.get("seat") if str(payload.get("seat", "")).strip() else -1)
+        phase = str(payload.get("phase") or "discard")
+        game_id = self._game_id_from_path(path, raw)
+        result = self.paipu_analysis.get_round_turn_state_from_raw(
+            raw,
+            round_selector=round_selector,
+            turn_mode=turn_mode,
+            turn_number=turn_number,
+            seat=seat,
+            phase=phase,
+            game_id=game_id,
+            raw_json_path=self._raw_relative_path(path),
         )
+        self._debug_api(
+            "analysis_turn_state",
+            file_name=path.name,
+            game_id=game_id,
+            round_selector=round_selector,
+            turn_mode=turn_mode,
+            turn_number=turn_number,
+            seat=seat,
+            phase=phase,
+            result_type=type(result).__name__,
+        )
+        return self._ok(result)
 
     async def analysis_player_trace(self):
         return await self._guarded(self._analysis_player_trace)
 
     async def _analysis_player_trace(self):
         payload, path, raw = await self._analysis_raw_payload()
-        return self._ok(
-            self.paipu_analysis.get_player_round_trace_from_raw(
-                raw,
-                round_selector=str(payload.get("round_selector") or ""),
-                player_selector=str(payload.get("player_selector") or ""),
-                game_id=self._game_id_from_path(path, raw),
-                raw_json_path=self._raw_relative_path(path),
-            )
+        round_selector = str(payload.get("round_selector") or "")
+        player_selector = str(payload.get("player_selector") or "")
+        game_id = self._game_id_from_path(path, raw)
+        result = self.paipu_analysis.get_player_round_trace_from_raw(
+            raw,
+            round_selector=round_selector,
+            player_selector=player_selector,
+            game_id=game_id,
+            raw_json_path=self._raw_relative_path(path),
         )
+        self._debug_api(
+            "analysis_player_trace",
+            file_name=path.name,
+            game_id=game_id,
+            round_selector=round_selector,
+            player_selector=player_selector,
+            result_type=type(result).__name__,
+        )
+        return self._ok(result)
