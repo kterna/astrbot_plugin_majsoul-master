@@ -34,4 +34,7 @@ venv.bak/
 .DS_Store
 data/temp/
 cache/
+.cache/
+data/cmd_config.json
+data/t2i_templates/
 logs/
