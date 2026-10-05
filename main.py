@@ -190,7 +190,6 @@ class MajsoulPlugin(Star):
 - 雀魂review <牌谱URL或paipu_id>：拉取并缓存原始牌谱（raw.json）
 
 【账号池管理（管理员）】
-- 雀魂导入Token <Token> [UID] [备注名]：直接录入浏览器导出的有效凭据
 - 雀魂登录国服 <用户名> <密码>：添加或更新国服账号
 - 雀魂登录列表：查看当前账号池
 - 雀魂登录删除 <序号|uid|用户名>：删除账号池账号
@@ -499,40 +498,6 @@ class MajsoulPlugin(Star):
             ),
             "majsoul_get_player_round_trace",
         )
-
-    @filter.permission_type(filter.PermissionType.ADMIN)
-    @filter.command("雀魂导入Token")
-    async def handle_login_token(self, event: AstrMessageEvent):
-        """管理员通过 Token 导入/更新雀魂账号"""
-        args = re.sub(r'^雀魂导入Token\s*', '', event.message_str.strip())
-        parts = args.split()
-        if not parts:
-            yield event.plain_result(
-                "【使用说明】通过浏览器提取的 Token 录入账号池：\n"
-                "格式：雀魂导入Token <Token> [UID] [备注名]\n"
-                "例如：雀魂导入Token daf44fe8-3b89-43a1-8c85-3cca8e74a5de 18443933 kterna"
-            )
-            return
-
-        token = parts[0].strip()
-        uid = parts[1].strip() if len(parts) >= 2 else None
-        username = parts[2].strip() if len(parts) >= 3 else None
-
-        yield event.plain_result("正在校验并导入 Token，请稍候...")
-        try:
-            success, message = await asyncio.wait_for(
-                self.review_service.add_cn_token_account(token=token, uid=uid, username=username),
-                timeout=60,
-            )
-        except asyncio.TimeoutError:
-            yield event.plain_result("Token 校验超时（超过60秒），请检查网络连接")
-            return
-        except Exception as exc:
-            logger.error(f"[majsoul-review] add_cn_token_account执行异常: {exc}", exc_info=True)
-            yield event.plain_result(f"导入失败: {exc}")
-            return
-
-        yield event.plain_result(message)
 
     @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("雀魂登录国服")

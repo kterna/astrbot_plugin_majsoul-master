@@ -85,68 +85,6 @@ class ReviewService:
 
         return raw
 
-    async def add_cn_token_account(
-        self,
-        token: str,
-        uid: Optional[str] = None,
-        username: Optional[str] = None,
-        nickname: Optional[str] = None,
-        progress_cb: Optional[ProgressCallback] = None,
-    ) -> Tuple[bool, str]:
-        """直接导入或更新已抓取的有效 Token 凭据。"""
-        token = token.strip()
-        if not token:
-            return False, "Token 不能为空"
-        
-        conn = None
-        try:
-            await self._notify(progress_cb, "正在通过 Token 验证雀魂连接...")
-            conn = await create_connection(access_token=token, progress_cb=progress_cb)
-            account_uid = str(conn.account_id) if conn.account_id else (uid or "unknown")
-            account_nick = conn.nick_name or (nickname or "")
-            account_user = username or f"token_{account_uid}"
-            
-            await self.store.add_or_update(
-                uid=account_uid,
-                username=account_user,
-                password="",
-                token=conn.access_token or token,
-                nickname=account_nick,
-                status="ok",
-                error="",
-            )
-            await self._notify(progress_cb, f"Token 登录成功，账号已入池: {account_nick}({account_uid})")
-            return True, f"Token 验证并入池成功: {account_nick}({account_uid})"
-        except Exception as exc:
-            detail = str(exc).strip() or repr(exc) or exc.__class__.__name__
-            logger.warning(f"[majsoul-review] Token 在线测试未通过: {detail}")
-            # 如果在线校验受限（例如网关151拒绝新会话），但用户显式提供了 uid 与 token，仍允许将其持久化以便后续请求尝试
-            if uid:
-                account_user = username or f"token_{uid}"
-                account_nick = nickname or ""
-                await self.store.add_or_update(
-                    uid=str(uid),
-                    username=account_user,
-                    password="",
-                    token=token,
-                    nickname=account_nick,
-                    status="manual_imported",
-                    error=f"导入时在线验证未通过: {detail}",
-                )
-                return True, (
-                    f"已保存 Token 凭据到账号池 (uid={uid})。\n"
-                    f"提示：当前网关在线检验返回: {detail}\n"
-                    "若牌谱拉取时仍被拦截，请在浏览器对局界面重新复制最新 Token。"
-                )
-            return False, (
-                f"Token 校验失败: {detail}\n"
-                "提示：若当前 Token 确实有效，请使用完整格式强制录入：\n"
-                "雀魂导入Token <Token> <UID> [备注用户名]"
-            )
-        finally:
-            if conn is not None:
-                await self._close_conn(conn)
-
     async def add_cn_account(
         self,
         username: str,
@@ -178,20 +116,17 @@ class ReviewService:
                 f"[majsoul-review] 国服登录失败 username={username}: {exc.__class__.__name__}: {detail}",
                 exc_info=True,
             )
-            if "code=1002" in detail:
+            if "code=1002" in detail or "code=1003" in detail:
                 return (
                     False,
                     "登录失败: 账号或密码校验失败。这里需要填写雀魂登录账号/邮箱/手机号，"
-                    "不是游戏昵称；请同时确认密码正确。原始错误: "
+                    "不是游戏昵称；请确认密码正确。原始错误: "
                     f"{exc.__class__.__name__}: {detail}",
                 )
             if "code=151" in detail:
                 return (
                     False,
-                    "登录失败: 雀魂网关返回 code=151（当前网关拒绝了新建立的模拟网页登录会话）。\n"
-                    "【解决方案】：请直接从已登录的浏览器/油猴脚本复制当前会话的 access_token，使用指令录入：\n"
-                    "雀魂导入Token <Token> <你的UID>\n"
-                    f"原始网关错误: {exc.__class__.__name__}: {detail}",
+                    f"登录失败: 雀魂网关握手被拒绝 (code=151)，请重试或检查雀魂网关状态。原始错误: {exc.__class__.__name__}: {detail}",
                 )
             return False, f"登录失败: {exc.__class__.__name__}: {detail}"
         finally:
