@@ -6,6 +6,7 @@ import inspect
 import json
 import random
 import re
+import time
 import uuid
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
@@ -514,6 +515,10 @@ async def fetch_majsoul_info(
         await get_res(url_base, f"{pb_version}/res/proto/liqi.json"),
         MajsoulLiqiProto,
     )
+    if "lq" in pb_def.nested and "ReqRequestConnection" in pb_def.nested["lq"].nested:
+        rc_fields = pb_def.nested["lq"].nested["ReqRequestConnection"].fields
+        if "platform" not in rc_fields:
+            rc_fields["platform"] = {"type": "string", "id": 6}
 
     await _notify(progress_cb, "正在获取网关配置")
     config_obj = await get_res(url_base, config_path)
@@ -531,17 +536,19 @@ async def fetch_majsoul_info(
     if not gateways:
         raise ValueError("gateway list is empty")
 
-    gateway_url = random.choice(gateways).url
+    gateway_urls = [g.url for g in gateways if getattr(g, "url", "")]
+    if not gateway_urls:
+        raise ValueError("gateway list is empty")
+    random.shuffle(gateway_urls)
+
+    servers = [f"{url.replace('https://', '')}/gateway" for url in gateway_urls]
     logger.debug(
         "[majsoul-review] gateway config: "
         f"ip_defs={len(ip_defs)} selected_ip={getattr(ip_def, 'name', '')} "
-        f"gateway_count={len(gateways)} selected_url={gateway_url}"
+        f"gateway_count={len(servers)} servers={servers}"
     )
-    region_url = gateway_url.replace("https://", "")
-    server = f"{region_url}/gateway"
 
-    await _notify(progress_cb, f"网关已选择: {server}")
-    return server, pb_def, pb_version, version_info, client_version_string
+    return servers, pb_def, pb_version, version_info, client_version_string
 
 
 async def create_connection(
@@ -551,7 +558,7 @@ async def create_connection(
     progress_cb: Optional[ProgressCallback] = None,
 ) -> MajsoulConnection:
     (
-        server,
+        servers,
         pb_def,
         pb_version,
         version_info,
@@ -562,16 +569,31 @@ async def create_connection(
     )
 
     codec = MajsoulProtoCodec(pb_def, pb_version)
-    conn = MajsoulConnection(
-        f"wss://{server}",
-        codec,
-        version_info,
-        client_version_string=client_version_string,
-    )
-    try:
-        await _notify(progress_cb, "正在建立 WebSocket 连接")
-        await conn.connect()
+    conn: Optional[MajsoulConnection] = None
+    connect_errors = []
 
+    for server in servers:
+        candidate_conn = MajsoulConnection(
+            f"wss://{server}",
+            codec,
+            version_info,
+            client_version_string=client_version_string,
+        )
+        try:
+            await _notify(progress_cb, f"正在建立 WebSocket 连接 ({server})")
+            await candidate_conn.connect()
+            conn = candidate_conn
+            break
+        except Exception as exc:
+            connect_errors.append(f"{server}: {exc}")
+            logger.warning(f"[majsoul-review] 网关 {server} 连接失败: {exc}，尝试备用网关")
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await candidate_conn.close()
+
+    if conn is None:
+        raise ConnectionError(f"所有雀魂网关连接失败: {'; '.join(connect_errors)}")
+
+    try:
         await _notify(progress_cb, "连接成功，发送心跳")
         _ = await conn.rpc_call(
             ".lq.Route.heartbeat",
@@ -582,6 +604,26 @@ async def create_connection(
                 "network_quality": random.randint(0, 100),
             },
         )
+
+        # 雀魂新网关握手协议：必须携带 platform="Web" 发起 requestConnection，否则网关后续将返回 151
+        route_id = "route-2"
+        m = re.search(r"(route-\d+)", conn._endpoint)
+        if m:
+            route_id = m.group(1)
+
+        await _notify(progress_cb, f"正在进行网关握手与平台验证 ({route_id})")
+        try:
+            await conn.rpc_call(
+                ".lq.Route.requestConnection",
+                {
+                    "type": 1,
+                    "route_id": route_id,
+                    "timestamp": int(time.time()),
+                    "platform": "Web",
+                },
+            )
+        except Exception as route_exc:
+            logger.warning(f"[majsoul-review] requestConnection failed or skipped: {route_exc}")
 
         if access_token:
             await _notify(progress_cb, "正在使用 access_token 登录")
