@@ -279,19 +279,23 @@ class MajsoulWebUIApi:
         payload = await self._payload()
         username = str(payload.get("username") or "").strip()
         password = str(payload.get("password") or "").strip()
+        token = str(payload.get("token") or "").strip()
+        uid = str(payload.get("uid") or "").strip()
+        nickname = str(payload.get("nickname") or "").strip()
         self._debug_api(
             "accounts_login_start",
             username=self._mask_account_ref(username),
             password_provided=bool(password),
+            token_provided=bool(token),
             timeout_seconds=self.timeout_seconds,
         )
-        if not username or not password:
+        if not (username and password) and not token:
             self._debug_api(
                 "accounts_login_rejected",
                 username=self._mask_account_ref(username),
-                reason="missing_username_or_password",
+                reason="missing_credentials",
             )
-            return self._error("请输入用户名和密码")
+            return self._error("请输入用户名和密码，或直接输入有效 Token")
         if self._account_login_lock.locked():
             self._debug_api(
                 "accounts_login_rejected",
@@ -300,10 +304,16 @@ class MajsoulWebUIApi:
             )
             return self._error("已有账号登录验证正在进行，请稍后")
         async with self._account_login_lock:
-            success, message = await asyncio.wait_for(
-                self.review_service.add_cn_account(username, password),
-                timeout=self.timeout_seconds,
-            )
+            if token:
+                success, message = await asyncio.wait_for(
+                    self.review_service.add_cn_token_account(token=token, uid=uid or None, username=username or None, nickname=nickname or None),
+                    timeout=self.timeout_seconds,
+                )
+            else:
+                success, message = await asyncio.wait_for(
+                    self.review_service.add_cn_account(username, password),
+                    timeout=self.timeout_seconds,
+                )
         if not success:
             self._debug_api(
                 "accounts_login_failed",
