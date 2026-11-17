@@ -29,6 +29,7 @@ ERROR_MESSAGES = {
                 -3: "API服务器错误",
     -4: "参数错误",
     -404: "网络连接错误",
+    -429: "牌谱屋返回 429 访问受限（需要 API Key）。请使用「雀魂设置key <API Key>」或在插件配置中填入 paipuwu_api_key。",
     -500: "服务器内部错误"
 }
 
@@ -101,17 +102,33 @@ def handle_api_error(func):
 class MajsoulAPI:
     """雀魂API客户端"""
     
-    def __init__(self, base_url: str = "https://5-data.amae-koromo.com/api/v2"):
+    def __init__(self, base_url: str = "https://5-data.amae-koromo.com/api/v2", api_key: str = "", custom_header: str = "X-API-Key"):
         """初始化API客户端"""
         self.base_url = base_url.rstrip('/')
         self.pl4_url = f"{self.base_url}/pl4"
         self.pl3_url = f"{self.base_url}/pl3"
+        self.api_key = api_key.strip() if api_key else ""
+        self.custom_header = custom_header.strip() if custom_header else "X-API-Key"
         self.session: Optional[aiohttp.ClientSession] = None
+        self._rebuild_headers()
+
+    def _rebuild_headers(self) -> None:
         self.default_headers = {
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
             "Accept": "application/json"
         }
-        
+        if self.api_key:
+            self.default_headers[self.custom_header] = self.api_key
+            if self.custom_header.lower() != "x-cap-token":
+                self.default_headers["x-cap-token"] = self.api_key
+
+    def set_api_key(self, api_key: str, custom_header: str = "X-API-Key") -> None:
+        """动态配置或更新牌谱屋 API Key"""
+        self.api_key = api_key.strip() if api_key else ""
+        self.custom_header = custom_header.strip() if custom_header else "X-API-Key"
+        self._rebuild_headers()
+        self.session = None
+
     async def ensure_session(self) -> None:
         """确保会话已创建"""
         if self.session is None or self.session.closed:
@@ -128,6 +145,8 @@ class MajsoulAPI:
         await self.ensure_session()
         try:
             async with self.session.get(url, timeout=DEFAULT_TIMEOUT) as response:
+                if response.status == 429:
+                    raise APIError(-429)
                 if response.status != 200:
                     raise APIError(-404)
                 
@@ -215,6 +234,19 @@ class MajsoulAPI:
             raise APIError(-1)
             
         return self.format_records(records, room_level, is_south, mode, player_id)
+
+    async def fetch_player_records_raw(self, nickname: str, mode: GameMode = DEFAULT_MODE, limit: int = DEFAULT_LIMIT, room_level: RoomLevel = DEFAULT_ROOM, is_south: bool = DEFAULT_DIRECTION) -> List[Dict]:
+        """获取玩家对局原始列表（用于跨源牌运诊断等）"""
+        player = await self.get_player_info(nickname, mode)
+        player_id = int(player.get("id", 0))
+        current_timestamp = int(datetime.now().timestamp() * 1000)
+        game_mode = self._get_game_mode(room_level, is_south, mode)
+        
+        url = f"{self._get_api_url(mode)}/player_records/{player['id']}/{current_timestamp}/{START_TIME}?limit={limit}&mode={game_mode}&descending=true"
+        records = await self.request(url)
+        if not records or not isinstance(records, list):
+            return []
+        return records
 
     @handle_api_error
     async def query_extended_stats(self, nickname: str, mode: GameMode, room_level: RoomLevel, is_south: bool) -> str:
@@ -474,11 +506,15 @@ class MajsoulAPI:
         return "\n".join(result).strip()
 
 class MajsoulQuery:
-    """雀魂查询功能"""
+    """雀魂查询功能（支持牌谱屋 Key 鉴权与双轨制拉取）"""
     
-    def __init__(self, api_url: str = "https://5-data.amae-koromo.com/api/v2"):
+    def __init__(self, api_url: str = "https://5-data.amae-koromo.com/api/v2", api_key: str = "", custom_header: str = "X-API-Key"):
         """初始化查询功能"""
-        self.api = MajsoulAPI(api_url)
+        self.api = MajsoulAPI(api_url, api_key=api_key, custom_header=custom_header)
+
+    def set_api_key(self, api_key: str, custom_header: str = "X-API-Key") -> None:
+        """动态配置或更新牌谱屋 API Key"""
+        self.api.set_api_key(api_key, custom_header)
         
     async def close(self) -> None:
         """关闭API连接"""
@@ -500,6 +536,23 @@ class MajsoulQuery:
             return await self.api.query_records(nickname, mode, limit, room_level, is_south)
         except Exception as e:
             return False, f"查询失败: {str(e)}"
+
+    async def get_player_records_raw(
+        self,
+        nickname: str,
+        mode: GameMode = DEFAULT_MODE,
+        limit: int = DEFAULT_LIMIT,
+        room_level: RoomLevel = DEFAULT_ROOM,
+        is_south: bool = DEFAULT_DIRECTION,
+    ) -> Tuple[bool, Union[List[Dict], str]]:
+        """获取玩家对局原始列表（用于牌运服务）"""
+        try:
+            records = await self.api.fetch_player_records_raw(nickname, mode, limit, room_level, is_south)
+            return True, records
+        except APIError as e:
+            return False, e.message
+        except Exception as e:
+            return False, str(e)
 
     async def query_extended_stats(self, nickname: str, mode: GameMode, room_level: RoomLevel, is_south: bool) -> Tuple[bool, str]:
         """查询玩家详细战绩统计"""

@@ -5,6 +5,7 @@ from astrbot.api import logger, llm_tool
 from .modules.query.extended_query import DEFAULT_LIMIT, MajsoulQuery
 from .modules.gacha.gacha import GachaSystem
 from .modules.analysis.mahjong_utils import PaiAnalyzer
+from .modules.analysis.luck_service import LuckAnalysisService
 from .modules.wordle.mahjong_wordle import MahjongWordle
 from .modules.wordle.multi_mahjong_wordle import MultiMahjongWordle
 from .modules.review import PaipuAnalysisService, ReviewService
@@ -31,14 +32,32 @@ class MajsoulPlugin(Star):
         # 初始化配置
         self.data_dir = os.path.join(os.path.dirname(__file__), "data")
         self.config = config or {}
+
+        # 加载本地持久化配置（如通过命令设置的牌谱屋 Key）
+        local_conf_path = self.plugin_data_dir / "config.json"
+        if local_conf_path.exists():
+            try:
+                with open(local_conf_path, "r", encoding="utf-8") as f:
+                    local_conf = json.load(f)
+                    if isinstance(local_conf, dict):
+                        self.config.update(local_conf)
+            except Exception as e:
+                logger.warning(f"加载本地插件配置文件失败: {e}")
+
         self.resource_pack = ResourcePackManager(self.plugin_data_dir, self.config)
         
         # 初始化各个系统
         self.api_url = "https://5-data.amae-koromo.com/api/v2"  # 使用新的API地址
+        self.paipuwu_api_key = str(self.config.get('paipuwu_api_key', '') or '').strip()
+        self.paipuwu_custom_header = str(self.config.get('paipuwu_custom_header', 'X-API-Key') or 'X-API-Key').strip()
         self.default_pool = self.config.get('default_pool', 'standard')
         
         # 初始化模块
-        self.query = MajsoulQuery(self.api_url)
+        self.query = MajsoulQuery(
+            self.api_url,
+            api_key=self.paipuwu_api_key,
+            custom_header=self.paipuwu_custom_header,
+        )
         self.gacha = GachaSystem(self.data_dir, resources_dir=str(self.resource_pack.resources_dir))
         self.pai_analyzer = PaiAnalyzer()
         
@@ -59,6 +78,7 @@ class MajsoulPlugin(Star):
             config=self.config,
         )
         self.paipu_analysis = PaipuAnalysisService(self.review_service)
+        self.luck_service = LuckAnalysisService(self.review_service)
         self.webui_api = MajsoulWebUIApi(self)
         self.webui_api.register(context)
 
@@ -186,8 +206,19 @@ class MajsoulPlugin(Star):
 - 雀魂牌谱 昵称 三人：查询玩家最近的三麻对局记录
 - 雀魂牌谱 昵称 三人 10：查询玩家最近10条三麻对局记录
 
+【牌运诊断】
+- 雀魂牌运：诊断最近 5 场的每一局起手向听数、首巡进张率与牌运评分（需已绑定账号）
+- 雀魂牌运 10：诊断最近 10 场的综合牌运走势
+- 雀魂牌运 三人 [数量]：筛选最近的三人麻将对局进行牌运诊断
+- 雀魂牌运 金南 / 玉南 [数量]：筛选指定段位房间对局进行牌运诊断
+- 雀魂牌运 昵称 [模式] [数量]：指定玩家与模式进行牌运诊断
+
 【牌谱拉取】
 - 雀魂review <牌谱URL或paipu_id>：拉取并缓存原始牌谱（raw.json）
+
+【牌谱屋 Key 管理】
+- 雀魂设置key：查看当前牌谱屋 API Key 配置状态
+- 雀魂设置key <API Key> [Header名]：配置牌谱屋 API Key（免密查全服玩家对局与战绩）
 
 【账号池管理（管理员）】
 - 雀魂登录国服 <用户名> <密码>：添加或更新国服账号
@@ -262,24 +293,51 @@ class MajsoulPlugin(Star):
             # 去除命令前缀
             args = re.sub(r'^雀魂牌谱\s*', '', event.message_str.strip())
 
-            # 如果没有输入参数，尝试使用绑定的昵称
+            # 解析数量参数（最后一个纯数字参数）
+            parts = args.strip().split()
+            limit = DEFAULT_LIMIT
+            if parts and parts[-1].isdigit():
+                limit = min(int(parts[-1]), 30)  # 最多30条
+                args = ' '.join(parts[:-1]).strip()
+
+            # 优先使用官方长连接网关（方案A）
+            accounts = await self.review_service.store.list_accounts()
+            matched_acc = None
+            bound_nickname = self._get_bound_nickname(user_id)
+            if accounts:
+                if not args:
+                    if bound_nickname:
+                        matched_acc = next((a for a in accounts if a.nickname and a.nickname.lower() == bound_nickname.lower()), None)
+                else:
+                    target_arg = args.lower()
+                    matched_acc = next((a for a in accounts if (a.nickname and a.nickname.lower() == target_arg) or str(a.uid) == target_arg), None)
+
+            # 如果没有输入参数且未绑定，直接提示绑定
+            if not args and not bound_nickname:
+                yield event.plain_result("未检测到绑定账号。请先发送「雀魂绑定 你的昵称」绑定账号后重试，或直接输入「雀魂牌谱 你的昵称」。")
+                return
+
+            if matched_acc:
+                try:
+                    records = await self.review_service.fetch_recent_records(count=limit, account_uid=matched_acc.uid)
+                    if not records:
+                        yield event.plain_result(f"玩家 {matched_acc.nickname or matched_acc.uid} 暂无对局记录。")
+                        return
+                    result_text = self.review_service.format_recent_records(records, target_account_id=int(matched_acc.uid))
+                    yield event.plain_result(result_text)
+                    return
+                except Exception as exc:
+                    logger.warning(f"[majsoul-review] 官方网关拉取对局记录异常，将回退到第三方接口: {exc}")
+
+            # 未在官方账号池匹配时，走第三方牌谱屋接口
             if not args:
-                bound_nickname = self._get_bound_nickname(user_id)
                 if bound_nickname:
                     args = bound_nickname
                 else:
                     yield event.plain_result("请输入要查询的昵称，或使用 雀魂绑定 昵称 绑定账号")
                     return
             else:
-                # 尝试在房间参数前添加绑定昵称
                 args = self._prepend_bound_nickname(args, user_id)
-
-            # 解析数量参数（最后一个纯数字参数）
-            parts = args.strip().split()
-            limit = DEFAULT_LIMIT
-            if parts and parts[-1].isdigit():
-                limit = min(int(parts[-1]), 30)  # 最多30条
-                args = ' '.join(parts[:-1])
 
             # 解析参数并执行查询
             nickname, room_level, is_south, mode = self.query.parse_command_args(args)
@@ -287,6 +345,214 @@ class MajsoulPlugin(Star):
             yield event.plain_result(result if success else f"查询失败: {result}")
         except Exception as e:
             yield event.plain_result(f"处理查询命令时出错: {str(e)}")
+
+    @filter.command("雀魂设置key", alias={"雀魂牌谱屋key"})
+    async def handle_set_key(self, event: AstrMessageEvent):
+        """查看或配置牌谱屋 (Amae-Koromo) API Key"""
+        args = re.sub(r'^(雀魂设置key|雀魂牌谱屋key)\s*', '', event.message_str.strip()).strip()
+        if not args:
+            cur_key = self.config.get("paipuwu_api_key", "")
+            header = self.config.get("paipuwu_custom_header", "X-API-Key")
+            if cur_key:
+                masked = cur_key[:4] + "***" + cur_key[-4:] if len(cur_key) >= 8 else "***"
+                yield event.plain_result(f"当前已配置牌谱屋 API Key: {masked} (Header: {header})\n如需更新请发送：雀魂设置key <新Key> [Header名]")
+            else:
+                yield event.plain_result("当前未配置牌谱屋 API Key。\n收到站长发放的 Key 后，请发送：雀魂设置key <API Key> [Header名]")
+            return
+
+        parts = args.split()
+        new_key = parts[0].strip()
+        custom_header = parts[1].strip() if len(parts) > 1 else self.config.get("paipuwu_custom_header", "X-API-Key")
+
+        self.config["paipuwu_api_key"] = new_key
+        self.config["paipuwu_custom_header"] = custom_header
+        self.query.set_api_key(new_key, custom_header)
+
+        # 保存配置到文件持久化
+        try:
+            config_file = self.plugin_data_dir / "config.json"
+            with open(config_file, "w", encoding="utf-8") as f:
+                json.dump(self.config, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.warning(f"保存插件配置到文件失败: {e}")
+
+        masked = new_key[:4] + "***" + new_key[-4:] if len(new_key) >= 8 else "***"
+        yield event.plain_result(f"牌谱屋 API Key 配置成功！\nKey: {masked}\nHeader: {custom_header}\n现在无需登录账号即可直接通过牌谱屋查询全服任意玩家的战绩与牌谱。")
+
+    @filter.command("雀魂牌运")
+    async def handle_luck(self, event: AstrMessageEvent):
+        """诊断玩家近期雀魂牌运状态（起手向听、进张率与运势分析，支持官方网关与牌谱屋双轨）"""
+        try:
+            user_id = str(event.message_obj.sender.user_id)
+            args = re.sub(r'^雀魂牌运\s*', '', event.message_str.strip())
+
+            # 解析参数：数量、房间/段位/人数过滤、以及目标昵称
+            parts = args.strip().split()
+            count = 5
+            target_is_3p = None
+            target_room = None
+            target_south = None
+            name_tokens = []
+
+            for p in parts:
+                if p.isdigit():
+                    count = min(int(p), 15)
+                    continue
+
+                norm = p.replace("麻将", "").replace("模式", "").replace("场次", "").replace("房", "").replace("之间", "").replace("场", "").strip()
+                matched_room = False
+
+                if norm in ("三人", "三麻", "3人", "3麻", "3p", "3P"):
+                    target_is_3p = True
+                    matched_room = True
+                elif norm in ("四人", "四麻", "4人", "4麻", "4p", "4P"):
+                    target_is_3p = False
+                    matched_room = True
+                elif norm in ("金", "金南", "金东", "金之间"):
+                    target_room = "金之间"
+                    if "南" in norm:
+                        target_south = True
+                    elif "东" in norm:
+                        target_south = False
+                    matched_room = True
+                elif norm in ("玉", "玉南", "玉东", "玉之间"):
+                    target_room = "玉之间"
+                    if "南" in norm:
+                        target_south = True
+                    elif "东" in norm:
+                        target_south = False
+                    matched_room = True
+                elif norm in ("王座", "王座南", "王座东", "王座间"):
+                    target_room = "王座间"
+                    if "南" in norm:
+                        target_south = True
+                    elif "东" in norm:
+                        target_south = False
+                    matched_room = True
+                elif norm in ("三人金南", "三金南", "3金南"):
+                    target_is_3p = True
+                    target_room = "金之间"
+                    target_south = True
+                    matched_room = True
+                elif norm in ("三人玉南", "三玉南", "3玉南"):
+                    target_is_3p = True
+                    target_room = "玉之间"
+                    target_south = True
+                    matched_room = True
+                elif norm in ("四人金南", "四金南", "4金南"):
+                    target_is_3p = False
+                    target_room = "金之间"
+                    target_south = True
+                    matched_room = True
+                elif norm in ("四人玉南", "四玉南", "4玉南"):
+                    target_is_3p = False
+                    target_room = "玉之间"
+                    target_south = True
+                    matched_room = True
+
+                if not matched_room:
+                    name_tokens.append(p)
+
+            query_nickname = " ".join(name_tokens).strip()
+
+            target_nickname = None
+            account_uid = None
+
+            accounts = await self.review_service.store.list_accounts()
+
+            if query_nickname:
+                target_nickname = query_nickname
+                if accounts:
+                    matched = next((a for a in accounts if (a.nickname and a.nickname.lower() == query_nickname.lower()) or str(a.uid) == query_nickname), None)
+                    if matched:
+                        account_uid = matched.uid
+                        target_nickname = matched.nickname
+            else:
+                bound_nickname = self._get_bound_nickname(user_id)
+                if bound_nickname:
+                    target_nickname = bound_nickname
+                    if accounts:
+                        matched = next((a for a in accounts if a.nickname and a.nickname.lower() == bound_nickname.lower()), None)
+                        if matched:
+                            account_uid = matched.uid
+                else:
+                    yield event.plain_result(
+                        "未检测到绑定账号。请先发送「雀魂绑定 你的昵称」绑定账号后重试，或直接输入「雀魂牌运 你的昵称」。"
+                    )
+                    return
+
+            filter_prompt = ""
+            if target_is_3p is True:
+                filter_prompt += "三人"
+            elif target_is_3p is False:
+                filter_prompt += "四人"
+            if target_room:
+                filter_prompt += target_room
+            if target_south is True:
+                filter_prompt += "南"
+            elif target_south is False:
+                filter_prompt += "东"
+            prompt_str = f"【{filter_prompt}】" if filter_prompt else ""
+
+            # 途径 1：目标玩家在官方账号池中 -> 优先走官方长连接拉取对局列表
+            if account_uid:
+                yield event.plain_result(f"正在通过官方长连接调取并分析 {target_nickname} 最近 {count} 场{prompt_str}的牌谱数据，请稍候...")
+                success, result = await self.luck_service.analyze_luck(
+                    count=count,
+                    account_uid=account_uid,
+                    target_nickname=target_nickname,
+                    target_is_3p=target_is_3p,
+                    target_room=target_room,
+                    target_south=target_south,
+                )
+                yield event.plain_result(result if success else f"牌运分析失败: {result}")
+                return
+
+            # 途径 2：目标玩家未在官方账号池 -> 尝试通过牌谱屋 API 获取对局列表，并由 Bot 凭证拉取对应牌谱
+            yield event.plain_result(f"正在通过牌谱屋调取玩家「{target_nickname}」最近 {count} 场{prompt_str}的对局记录，请稍候...")
+            room_level_arg = "1" if target_room == "金之间" else ("2" if target_room == "玉之间" else ("3" if target_room == "王座间" else "0"))
+            is_south_arg = True if target_south is not False else False
+            mode_arg = "3" if target_is_3p else "4"
+
+            ok, raw_records = await self.query.get_player_records_raw(
+                nickname=target_nickname,
+                mode=mode_arg,
+                limit=count,
+                room_level=room_level_arg,
+                is_south=is_south_arg,
+            )
+            if ok and isinstance(raw_records, list) and raw_records:
+                yield event.plain_result(f"已获取到牌谱屋对局列表（共 {len(raw_records)} 场），正在调取每局手牌分析牌运...")
+                custom_records = []
+                for item in raw_records:
+                    u = item.get("uuid", "")
+                    if not u:
+                        continue
+                    custom_records.append({
+                        "uuid": u,
+                        "startTime": item.get("startTime", 0),
+                        "endTime": item.get("endTime", 0),
+                        "mode_id": item.get("modeId", 0),
+                        "players": item.get("players", []),
+                    })
+                success, result = await self.luck_service.analyze_luck(
+                    count=count,
+                    target_nickname=target_nickname,
+                    custom_records=custom_records,
+                )
+                yield event.plain_result(result if success else f"牌运分析失败: {result}")
+                return
+            else:
+                err_msg = str(raw_records) if not ok else "未查询到对局记录"
+                yield event.plain_result(
+                    f"玩家「{target_nickname}」未在官方登录账号池中。\n"
+                    f"通过牌谱屋公共接口获取对局失败: {err_msg}\n\n"
+                    f"💡 解决方法：\n"
+                    f"1. 若已有牌谱屋 Key，发送「雀魂设置key <API Key>」配置后即可直接查询全服任意玩家；\n"
+                    f"2. 或由该玩家私聊发送「雀魂登录国服 <账号> <密码>」将账号加入官方登录池。"
+                )
+        except Exception as e:
+            yield event.plain_result(f"处理牌运命令时出错: {str(e)}")
 
     @filter.command("雀魂review")
     async def handle_review(self, event: AstrMessageEvent):

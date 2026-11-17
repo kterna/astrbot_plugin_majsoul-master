@@ -5,6 +5,7 @@ import os
 import random
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Awaitable, Callable, List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
@@ -12,7 +13,9 @@ from urllib.parse import parse_qs, urlparse
 from astrbot.api import logger
 
 from .account_store import AccountStore
+from .constants import ROOM_MODE_MAP
 from .majsoul_connection import create_connection
+from .remote import encode_account_id2
 
 ProgressCallback = Callable[[str], Optional[Awaitable[None]]]
 
@@ -218,6 +221,140 @@ class ReviewService:
                     await self._close_conn(conn)
 
         raise RuntimeError("全部账号尝试失败:\n" + "\n".join(errors[:5]))
+
+    async def fetch_recent_records(
+        self,
+        count: int = 5,
+        account_uid: Optional[str] = None,
+        progress_cb: Optional[ProgressCallback] = None,
+    ) -> List[dict]:
+        """通过官方网关获取账号池账号的最近对局记录"""
+        accounts = await self.store.list_accounts()
+        if not accounts:
+            raise RuntimeError("未配置账号池，请先执行：雀魂登录国服 <用户名> <密码>")
+
+        if account_uid:
+            target_accs = [a for a in accounts if a.uid == str(account_uid)]
+            if not target_accs:
+                raise RuntimeError(f"账号池中未找到 UID 为「{account_uid}」的账号凭证。")
+        else:
+            raise RuntimeError("未指定查询账号 UID，请先通过「雀魂绑定 <昵称>」绑定账号后重试。")
+
+        errors: List[str] = []
+        for idx, acc in enumerate(target_accs, 1):
+            conn = None
+            try:
+                await self._notify(
+                    progress_cb,
+                    f"正在连接雀魂官方网关获取对局列表: {acc.nickname or acc.uid}",
+                )
+                if acc.token:
+                    try:
+                        conn = await create_connection(access_token=acc.token, progress_cb=progress_cb)
+                    except Exception:
+                        conn = await create_connection(
+                            username=acc.username,
+                            password=acc.password,
+                            progress_cb=progress_cb,
+                        )
+                else:
+                    conn = await create_connection(
+                        username=acc.username,
+                        password=acc.password,
+                        progress_cb=progress_cb,
+                    )
+
+                await self.store.update_token(acc.uid, conn.access_token, conn.nick_name)
+                res = await conn.rpc_call(
+                    ".lq.Lobby.fetchGameRecordList",
+                    {
+                        "start": 0,
+                        "count": count,
+                        "type": 0,
+                    },
+                )
+                await self.store.update_status(acc.uid, "ok", "")
+                records = getattr(res, "record_list", []) or []
+                formatted_list = []
+                for r in records:
+                    res_map = {}
+                    if hasattr(r, "result") and r.result:
+                        for p in r.result.players:
+                            res_map[p.seat] = p
+
+                    players_data = []
+                    for a in r.accounts:
+                        p_res = res_map.get(a.seat)
+                        score = p_res.total_point if p_res else 0
+                        grading_score = p_res.grading_score if p_res else 0
+                        players_data.append({
+                            "account_id": a.account_id,
+                            "seat": a.seat,
+                            "nickname": a.nickname,
+                            "score": score,
+                            "grading_score": grading_score,
+                            "level": getattr(a.level, "id", 0) if hasattr(a, "level") else 0,
+                        })
+                    mode_id = 0
+                    if hasattr(r, "config") and r.config:
+                        if hasattr(r.config, "meta") and r.config.meta:
+                            mode_id = getattr(r.config.meta, "mode_id", 0)
+
+                    formatted_list.append({
+                        "uuid": r.uuid,
+                        "startTime": r.start_time,
+                        "endTime": r.end_time,
+                        "players": players_data,
+                        "mode_id": mode_id,
+                    })
+                return formatted_list
+            except Exception as exc:
+                err = f"{acc.uid}: {exc}"
+                errors.append(err)
+                await self.store.update_status(acc.uid, "failed", str(exc))
+                logger.error(f"[majsoul-review] 获取对局列表失败 uid={acc.uid}: {exc}", exc_info=True)
+            finally:
+                if conn is not None:
+                    await self._close_conn(conn)
+
+        raise RuntimeError("获取对局列表失败:\n" + "\n".join(errors[:5]))
+
+    def format_recent_records(self, records: List[dict], target_account_id: int = 0) -> str:
+        """格式化官方网关对局记录为与原雀魂牌谱一致的文本"""
+        if not records:
+            return "暂无对局记录"
+        lines = ["【最近对局记录 (官方网关)】"]
+        for record in records:
+            time_str = datetime.fromtimestamp(record.get("startTime", 0)).strftime("%Y-%m-%d %H:%M:%S")
+            mode_id = record.get("mode_id", 0)
+            mode_meta = ROOM_MODE_MAP.get(mode_id)
+            mode_label = f" 【{mode_meta['name']}】" if mode_meta else ""
+            players = record.get("players", [])
+            if not players:
+                continue
+
+            sorted_players = sorted(players, key=lambda x: x.get("score", 0), reverse=True)
+            lines.append(f"时间：{time_str}{mode_label}")
+            lines.append("对局玩家：")
+            for i, p in enumerate(sorted_players, 1):
+                score_val = p.get("score", 0)
+                score_str = f"{score_val:+d}" if score_val != 0 else "0"
+                grading_str = ""
+                if "grading_score" in p and p["grading_score"] != 0:
+                    grading_str = f" ({p['grading_score']:+d} pt)"
+                nick = p.get("nickname", "未知")
+                lines.append(f"  {i}位 {nick} {score_str}{grading_str}")
+
+            uuid = record.get("uuid", "")
+            if uuid:
+                paipu_id = uuid
+                if target_account_id > 0:
+                    encoded = encode_account_id2(target_account_id)
+                    paipu_id = f"{uuid}_a{encoded}"
+                review_url = f"https://game.maj-soul.com/1/?paipu={paipu_id}"
+                lines.append(f"/雀魂review {review_url}")
+            lines.append("---")
+        return "\n".join(lines)
 
     @staticmethod
     def _round_label(kyoku: int, honba: int) -> str:
