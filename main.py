@@ -38,14 +38,12 @@ class MajsoulPlugin(Star):
         # 初始化各个系统
         self.api_url = "https://5-data.amae-koromo.com/api/v2"  # 使用新的API地址
         self.paipuwu_api_key = str(self.config.get('paipuwu_api_key', '') or '').strip()
-        self.paipuwu_custom_header = str(self.config.get('paipuwu_custom_header', 'Authorization') or 'Authorization').strip()
         self.default_pool = self.config.get('default_pool', 'standard')
         
         # 初始化模块
         self.query = MajsoulQuery(
             self.api_url,
             api_key=self.paipuwu_api_key,
-            custom_header=self.paipuwu_custom_header,
         )
         self.gacha = GachaSystem(self.data_dir, resources_dir=str(self.resource_pack.resources_dir))
         self.pai_analyzer = PaiAnalyzer()
@@ -196,10 +194,9 @@ class MajsoulPlugin(Star):
 - 雀魂牌谱 昵称 三人 10：查询玩家最近10条三麻对局记录
 
 【牌运诊断】
-- 雀魂牌运：诊断最近 5 场的每一局起手向听数、首巡进张率与牌运评分（已绑定登录账号直接查全模式）
-- 雀魂牌运 10：诊断最近 10 场的综合牌运走势
-- 雀魂牌运 三人 [数量]：筛选最近的三人麻将对局进行牌运诊断
-- 雀魂牌运 昵称 <四人金|三人玉|金南等> [数量]：通过牌谱屋查询指定玩家与模式对局（非登录账号需指定模式）
+- 雀魂牌运 [数量]：诊断近期对局起手向听、首巡进张率与牌运走势（绑定账号直接查全模式）
+- 雀魂牌运 三人 [数量]：筛选三麻对局进行牌运诊断
+- 雀魂牌运 昵称 <四人金|三人玉|金南等> [数量]：查询指定玩家与模式（非绑定账号需指定模式）
 
 【牌谱拉取】
 - 雀魂review <牌谱URL或paipu_id>：拉取并缓存原始牌谱（raw.json）
@@ -425,7 +422,7 @@ class MajsoulPlugin(Star):
             # 途径 2：目标玩家未在官方账号池 -> 通过牌谱屋 API 获取对局列表（必须指定房间模式参数）
             if not target_room:
                 yield event.plain_result(
-                    f"玩家「{target_nickname}」未在官方登录池中，通过牌谱屋查询时需指定房间模式（如：四人金、三人玉、金南等）。\n"
+                    f"查询非绑定账号「{target_nickname}」需指定房间模式（如：四人金、三人玉、金南等）。\n"
                     f"示例：雀魂牌运 {target_nickname} 四人金"
                 )
                 return
