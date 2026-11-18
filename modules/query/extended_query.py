@@ -180,27 +180,80 @@ class MajsoulAPI:
         """获取API基础URL"""
         return self.pl4_url if mode == "4" else self.pl3_url
 
-    def _get_game_mode(self, room_level: RoomLevel, is_south: bool, mode: GameMode = DEFAULT_MODE) -> str:
-        """获取游戏模式代码
-        
-        Args:
-            room_level: 房间等级 ("1"=金, "2"=玉, "3"=王座)
-            is_south: 是否为南场
-            mode: 游戏模式 ("3"=三麻, "4"=四麻)
-            
-        Returns:
-            str: 游戏模式代码
-        """
-        key = (room_level, is_south, mode)
-        default_key = ("1", True, mode)  # 默认为对应模式的金之间南场
-        return GAME_MODES.get(key, GAME_MODES[default_key])
+    def _get_game_mode(self, room_level: Optional[RoomLevel] = None, is_south: Optional[bool] = None, mode: GameMode = DEFAULT_MODE) -> str:
+        """获取游戏模式代码（支持单模式与全段位多模式）"""
+        is_3p = str(mode) == "3"
+        room = str(room_level) if room_level is not None else "0"
 
-    def _format_mode_label(self, room_level: RoomLevel, is_south: bool, mode: GameMode = DEFAULT_MODE) -> str:
-        """格式化模式显示文本（如：三人玉之间南场）"""
-        room_name = ROOM_NAMES.get(room_level, "全部场次")
-        player_count = "四人" if mode == "4" else "三人"
-        direction = "南场" if is_south else "东场"
+        # 全部场次 (room 为 "0", None, 或空)
+        if room in ("0", "None", "", "all"):
+            if is_south is True:
+                return "26,24,22" if is_3p else "16,12,9"
+            elif is_south is False:
+                return "25,23,21" if is_3p else "15,11,8"
+            else:
+                return "26,25,24,23,22,21" if is_3p else "16,15,12,11,9,8"
+
+        # 金之间
+        if room == "1":
+            if is_south is True:
+                return "22" if is_3p else "9"
+            elif is_south is False:
+                return "21" if is_3p else "8"
+            else:
+                return "22,21" if is_3p else "9,8"
+
+        # 玉之间
+        if room == "2":
+            if is_south is True:
+                return "24" if is_3p else "12"
+            elif is_south is False:
+                return "23" if is_3p else "11"
+            else:
+                return "24,23" if is_3p else "12,11"
+
+        # 王座之间
+        if room == "3":
+            if is_south is True:
+                return "26" if is_3p else "16"
+            elif is_south is False:
+                return "25" if is_3p else "15"
+            else:
+                return "26,25" if is_3p else "16,15"
+
+        return "26,25,24,23,22,21" if is_3p else "16,15,12,11,9,8"
+
+    def _format_mode_label(self, room_level: Optional[RoomLevel], is_south: Optional[bool], mode: GameMode = DEFAULT_MODE) -> str:
+        """格式化模式显示文本（如：三人玉之间南场、四人全部场次）"""
+        room_name = ROOM_NAMES.get(str(room_level), "全部场次") if room_level is not None else "全部场次"
+        player_count = "四人" if str(mode) == "4" else "三人"
+        if is_south is True:
+            direction = "南场"
+        elif is_south is False:
+            direction = "东场"
+        else:
+            direction = ""
         return f"{player_count}{room_name}{direction}"
+
+    async def detect_active_mode(self, nickname: str) -> GameMode:
+        """根据玩家最新对局时间戳，自动检测其最近活跃模式（三人 '3' vs 四人 '4'）"""
+        p4_ts = 0
+        p3_ts = 0
+        try:
+            p4 = await self.get_player_info(nickname, "4")
+            p4_ts = int(p4.get("latest_timestamp", 0) or 0)
+        except Exception:
+            pass
+
+        try:
+            p3 = await self.get_player_info(nickname, "3")
+            p3_ts = int(p3.get("latest_timestamp", 0) or 0)
+        except Exception:
+            pass
+
+        if p3_ts > p4_ts:
+            return "3"
+        return "4"
 
     async def get_player_info(self, nickname: str, mode: GameMode) -> JsonDict:
         """获取玩家信息"""
@@ -250,7 +303,14 @@ class MajsoulAPI:
             
         return self.format_records(records, room_level, is_south, mode, player_id)
 
-    async def fetch_player_records_raw(self, nickname: str, mode: GameMode = DEFAULT_MODE, limit: int = DEFAULT_LIMIT, room_level: RoomLevel = DEFAULT_ROOM, is_south: bool = DEFAULT_DIRECTION) -> List[Dict]:
+    async def fetch_player_records_raw(
+        self,
+        nickname: str,
+        mode: GameMode = DEFAULT_MODE,
+        limit: int = DEFAULT_LIMIT,
+        room_level: Optional[RoomLevel] = None,
+        is_south: Optional[bool] = None,
+    ) -> List[Dict]:
         """获取玩家对局原始列表（用于跨源牌运诊断等）"""
         player = await self.get_player_info(nickname, mode)
         player_id = int(player.get("id", 0))
@@ -552,13 +612,17 @@ class MajsoulQuery:
         except Exception as e:
             return False, f"查询失败: {str(e)}"
 
+    async def detect_active_mode(self, nickname: str) -> GameMode:
+        """根据玩家最新对局时间戳，自动检测其最近活跃模式（三人 '3' vs 四人 '4'）"""
+        return await self.api.detect_active_mode(nickname)
+
     async def get_player_records_raw(
         self,
         nickname: str,
         mode: GameMode = DEFAULT_MODE,
         limit: int = DEFAULT_LIMIT,
-        room_level: RoomLevel = DEFAULT_ROOM,
-        is_south: bool = DEFAULT_DIRECTION,
+        room_level: Optional[RoomLevel] = None,
+        is_south: Optional[bool] = None,
     ) -> Tuple[bool, Union[List[Dict], str]]:
         """获取玩家对局原始列表（用于牌运服务）"""
         try:

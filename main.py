@@ -333,7 +333,7 @@ class MajsoulPlugin(Star):
 
     @filter.command("雀魂牌运")
     async def handle_luck(self, event: AstrMessageEvent):
-        """诊断玩家近期雀魂牌运状态（起手向听、进张率与运势分析，支持官方网关与牌谱屋双轨）"""
+        """诊断玩家近期雀魂牌运状态（起手向听、进张率与运势分析，支持全段位与双轨拉取）"""
         try:
             user_id = str(event.message_obj.sender.user_id)
             args = re.sub(r'^雀魂牌运\s*', '', event.message_str.strip())
@@ -354,52 +354,31 @@ class MajsoulPlugin(Star):
                 norm = p.replace("麻将", "").replace("模式", "").replace("场次", "").replace("房", "").replace("之间", "").replace("场", "").strip()
                 matched_room = False
 
-                if norm in ("三人", "三麻", "3人", "3麻", "3p", "3P"):
+                # 提取 3人 / 4人
+                if any(x in norm for x in ("三人", "三麻", "3人", "3麻", "3p", "3P")):
                     target_is_3p = True
                     matched_room = True
-                elif norm in ("四人", "四麻", "4人", "4麻", "4p", "4P"):
+                elif any(x in norm for x in ("四人", "四麻", "4人", "4麻", "4p", "4P")):
                     target_is_3p = False
                     matched_room = True
-                elif norm in ("金", "金南", "金东", "金之间"):
+
+                # 提取房间等级
+                if "金" in norm:
                     target_room = "金之间"
-                    if "南" in norm:
-                        target_south = True
-                    elif "东" in norm:
-                        target_south = False
                     matched_room = True
-                elif norm in ("玉", "玉南", "玉东", "玉之间"):
+                elif "玉" in norm:
                     target_room = "玉之间"
-                    if "南" in norm:
-                        target_south = True
-                    elif "东" in norm:
-                        target_south = False
                     matched_room = True
-                elif norm in ("王座", "王座南", "王座东", "王座间"):
+                elif "王座" in norm or "王" in norm:
                     target_room = "王座间"
-                    if "南" in norm:
-                        target_south = True
-                    elif "东" in norm:
-                        target_south = False
                     matched_room = True
-                elif norm in ("三人金南", "三金南", "3金南"):
-                    target_is_3p = True
-                    target_room = "金之间"
+
+                # 提取风向
+                if "南" in norm:
                     target_south = True
                     matched_room = True
-                elif norm in ("三人玉南", "三玉南", "3玉南"):
-                    target_is_3p = True
-                    target_room = "玉之间"
-                    target_south = True
-                    matched_room = True
-                elif norm in ("四人金南", "四金南", "4金南"):
-                    target_is_3p = False
-                    target_room = "金之间"
-                    target_south = True
-                    matched_room = True
-                elif norm in ("四人玉南", "四玉南", "4玉南"):
-                    target_is_3p = False
-                    target_room = "玉之间"
-                    target_south = True
+                elif "东" in norm:
+                    target_south = False
                     matched_room = True
 
                 if not matched_room:
@@ -433,22 +412,8 @@ class MajsoulPlugin(Star):
                     )
                     return
 
-            filter_prompt = ""
-            if target_is_3p is True:
-                filter_prompt += "三人"
-            elif target_is_3p is False:
-                filter_prompt += "四人"
-            if target_room:
-                filter_prompt += target_room
-            if target_south is True:
-                filter_prompt += "南"
-            elif target_south is False:
-                filter_prompt += "东"
-            prompt_str = f"【{filter_prompt}】" if filter_prompt else ""
-
             # 途径 1：目标玩家在官方账号池中 -> 优先走官方长连接拉取对局列表
             if account_uid:
-                yield event.plain_result(f"正在通过官方长连接调取并分析 {target_nickname} 最近 {count} 场{prompt_str}的牌谱数据，请稍候...")
                 success, result = await self.luck_service.analyze_luck(
                     count=count,
                     account_uid=account_uid,
@@ -460,11 +425,15 @@ class MajsoulPlugin(Star):
                 yield event.plain_result(result if success else f"牌运分析失败: {result}")
                 return
 
-            # 途径 2：目标玩家未在官方账号池 -> 尝试通过牌谱屋 API 获取对局列表，并由 Bot 凭证拉取对应牌谱
-            yield event.plain_result(f"正在通过牌谱屋调取玩家「{target_nickname}」最近 {count} 场{prompt_str}的对局记录，请稍候...")
-            room_level_arg = "1" if target_room == "金之间" else ("2" if target_room == "玉之间" else ("3" if target_room == "王座间" else "0"))
-            is_south_arg = True if target_south is not False else False
+            # 途径 2：目标玩家未在官方账号池 -> 通过牌谱屋 API 获取对局列表，并拉取对应牌谱
+            # 若未指定 3人 / 4人，自动检测该玩家最近活跃模式
+            if target_is_3p is None:
+                detected_mode = await self.query.detect_active_mode(target_nickname)
+                target_is_3p = (detected_mode == "3")
+
             mode_arg = "3" if target_is_3p else "4"
+            room_level_arg = "1" if target_room == "金之间" else ("2" if target_room == "玉之间" else ("3" if target_room == "王座间" else "0"))
+            is_south_arg = target_south  # True, False 或 None (全涵盖)
 
             ok, raw_records = await self.query.get_player_records_raw(
                 nickname=target_nickname,
@@ -474,7 +443,6 @@ class MajsoulPlugin(Star):
                 is_south=is_south_arg,
             )
             if ok and isinstance(raw_records, list) and raw_records:
-                yield event.plain_result(f"已获取到牌谱屋对局列表（共 {len(raw_records)} 场），正在调取每局手牌分析牌运...")
                 custom_records = []
                 for item in raw_records:
                     u = item.get("uuid", "")
@@ -496,13 +464,7 @@ class MajsoulPlugin(Star):
                 return
             else:
                 err_msg = str(raw_records) if not ok else "未查询到对局记录"
-                yield event.plain_result(
-                    f"玩家「{target_nickname}」未在官方登录账号池中。\n"
-                    f"通过牌谱屋公共接口获取对局失败: {err_msg}\n\n"
-                    f"💡 解决方法：\n"
-                    f"1. 若已有牌谱屋 Key，请管理员在 AstrBot 后台插件配置中填入 paipuwu_api_key；\n"
-                    f"2. 或由该玩家私聊发送「雀魂登录国服 <账号> <密码>」将账号加入官方登录池。"
-                )
+                yield event.plain_result(f"未找到玩家「{target_nickname}」近期的有效对局记录（{err_msg}）。")
         except Exception as e:
             yield event.plain_result(f"处理牌运命令时出错: {str(e)}")
 
@@ -514,7 +476,6 @@ class MajsoulPlugin(Star):
             yield event.plain_result("请输入牌谱URL或paipu_id，例如：雀魂review https://game.maj-soul.com/1/?paipu=xxxx")
             return
 
-        yield event.plain_result("正在拉取牌谱，请稍候...")
         try:
             success, message, _images = await asyncio.wait_for(
                 self.review_service.do_review(args),
