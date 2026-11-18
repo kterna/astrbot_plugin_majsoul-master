@@ -37,11 +37,11 @@
     "paipuwu_api_key": {
         "type": "string",
         "default": "",
-        "description": "牌谱屋 (Amae-Koromo) API Key / Token（向站长申请后填入，免登录查全服数据）"
+        "description": "牌谱屋 (Amae-Koromo) API Key / Bearer Token（向站长申请后填入，免登录查全服数据）"
     },
     "paipuwu_custom_header": {
         "type": "string",
-        "default": "X-API-Key",
-        "description": "牌谱屋 API Key 请求头字段（通常为 X-API-Key 或 x-cap-token）"
+        "default": "Authorization",
+        "description": "牌谱屋 API Key 请求头字段（默认标准 Authorization: Bearer <token>）"
     }
 }

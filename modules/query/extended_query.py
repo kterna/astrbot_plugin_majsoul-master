@@ -102,14 +102,17 @@ def handle_api_error(func):
 class MajsoulAPI:
     """雀魂API客户端"""
     
-    def __init__(self, base_url: str = "https://5-data.amae-koromo.com/api/v2", api_key: str = "", custom_header: str = "X-API-Key"):
+    def __init__(self, base_url: str = "https://5-data.amae-koromo.com/api/v2", api_key: str = "", custom_header: str = "Authorization"):
         """初始化API客户端"""
         self.base_url = base_url.rstrip('/')
         self.pl4_url = f"{self.base_url}/pl4"
         self.pl3_url = f"{self.base_url}/pl3"
         self.api_key = api_key.strip() if api_key else ""
-        self.custom_header = custom_header.strip() if custom_header else "X-API-Key"
+        self.custom_header = custom_header.strip() if custom_header else "Authorization"
         self.session: Optional[aiohttp.ClientSession] = None
+        self._rate_limit_lock = asyncio.Lock()
+        self._last_request_time = 0.0
+        self._min_interval = 1.0  # 保持最大 1 QPS 访问限制
         self._rebuild_headers()
 
     def _rebuild_headers(self) -> None:
@@ -118,14 +121,15 @@ class MajsoulAPI:
             "Accept": "application/json"
         }
         if self.api_key:
-            self.default_headers[self.custom_header] = self.api_key
-            if self.custom_header.lower() != "x-cap-token":
-                self.default_headers["x-cap-token"] = self.api_key
+            auth_val = self.api_key if self.api_key.lower().startswith("bearer ") else f"Bearer {self.api_key}"
+            self.default_headers["Authorization"] = auth_val
+            if self.custom_header and self.custom_header.lower() not in ("authorization", "bearer"):
+                self.default_headers[self.custom_header] = self.api_key
 
-    def set_api_key(self, api_key: str, custom_header: str = "X-API-Key") -> None:
+    def set_api_key(self, api_key: str, custom_header: str = "Authorization") -> None:
         """动态配置或更新牌谱屋 API Key"""
         self.api_key = api_key.strip() if api_key else ""
-        self.custom_header = custom_header.strip() if custom_header else "X-API-Key"
+        self.custom_header = custom_header.strip() if custom_header else "Authorization"
         self._rebuild_headers()
         self.session = None
 
@@ -141,8 +145,19 @@ class MajsoulAPI:
         self.session = None
         
     async def request(self, url: str) -> JsonDict:
-        """发送HTTP请求并返回JSON数据"""
+        """发送HTTP请求并返回JSON数据（严格限制最大 1 QPS）"""
         await self.ensure_session()
+        async with self._rate_limit_lock:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
+            now = loop.time()
+            elapsed = now - self._last_request_time
+            if elapsed < self._min_interval:
+                await asyncio.sleep(self._min_interval - elapsed)
+            self._last_request_time = loop.time()
+
         try:
             async with self.session.get(url, timeout=DEFAULT_TIMEOUT) as response:
                 if response.status == 429:
@@ -508,11 +523,11 @@ class MajsoulAPI:
 class MajsoulQuery:
     """雀魂查询功能（支持牌谱屋 Key 鉴权与双轨制拉取）"""
     
-    def __init__(self, api_url: str = "https://5-data.amae-koromo.com/api/v2", api_key: str = "", custom_header: str = "X-API-Key"):
+    def __init__(self, api_url: str = "https://5-data.amae-koromo.com/api/v2", api_key: str = "", custom_header: str = "Authorization"):
         """初始化查询功能"""
         self.api = MajsoulAPI(api_url, api_key=api_key, custom_header=custom_header)
 
-    def set_api_key(self, api_key: str, custom_header: str = "X-API-Key") -> None:
+    def set_api_key(self, api_key: str, custom_header: str = "Authorization") -> None:
         """动态配置或更新牌谱屋 API Key"""
         self.api.set_api_key(api_key, custom_header)
         

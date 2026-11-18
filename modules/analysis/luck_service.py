@@ -198,7 +198,11 @@ class LuckAnalysisService:
                 if not uuid:
                     continue
 
-                raw = await self.review_service._fetch_with_accounts(uuid)
+                success, msg, fetch_res = await self.review_service.fetch_raw_paipu(uuid)
+                if not success or not fetch_res or not fetch_res.raw:
+                    logger.warning(f"[majsoul-luck] 拉取牌谱 {uuid} 失败: {msg}")
+                    continue
+                raw = fetch_res.raw
                 names = raw.get("name", [])
                 target_seat = -1
                 for s_idx, name in enumerate(names):

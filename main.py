@@ -38,7 +38,7 @@ class MajsoulPlugin(Star):
         # 初始化各个系统
         self.api_url = "https://5-data.amae-koromo.com/api/v2"  # 使用新的API地址
         self.paipuwu_api_key = str(self.config.get('paipuwu_api_key', '') or '').strip()
-        self.paipuwu_custom_header = str(self.config.get('paipuwu_custom_header', 'X-API-Key') or 'X-API-Key').strip()
+        self.paipuwu_custom_header = str(self.config.get('paipuwu_custom_header', 'Authorization') or 'Authorization').strip()
         self.default_pool = self.config.get('default_pool', 'standard')
         
         # 初始化模块
