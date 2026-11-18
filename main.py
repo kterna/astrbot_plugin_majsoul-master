@@ -33,17 +33,6 @@ class MajsoulPlugin(Star):
         self.data_dir = os.path.join(os.path.dirname(__file__), "data")
         self.config = config or {}
 
-        # 加载本地持久化配置（如通过命令设置的牌谱屋 Key）
-        local_conf_path = self.plugin_data_dir / "config.json"
-        if local_conf_path.exists():
-            try:
-                with open(local_conf_path, "r", encoding="utf-8") as f:
-                    local_conf = json.load(f)
-                    if isinstance(local_conf, dict):
-                        self.config.update(local_conf)
-            except Exception as e:
-                logger.warning(f"加载本地插件配置文件失败: {e}")
-
         self.resource_pack = ResourcePackManager(self.plugin_data_dir, self.config)
         
         # 初始化各个系统
@@ -216,10 +205,6 @@ class MajsoulPlugin(Star):
 【牌谱拉取】
 - 雀魂review <牌谱URL或paipu_id>：拉取并缓存原始牌谱（raw.json）
 
-【牌谱屋 Key 管理】
-- 雀魂设置key：查看当前牌谱屋 API Key 配置状态
-- 雀魂设置key <API Key> [Header名]：配置牌谱屋 API Key（免密查全服玩家对局与战绩）
-
 【账号池管理（管理员）】
 - 雀魂登录国服 <用户名> <密码>：添加或更新国服账号
 - 雀魂登录列表：查看当前账号池
@@ -345,39 +330,6 @@ class MajsoulPlugin(Star):
             yield event.plain_result(result if success else f"查询失败: {result}")
         except Exception as e:
             yield event.plain_result(f"处理查询命令时出错: {str(e)}")
-
-    @filter.command("雀魂设置key", alias={"雀魂牌谱屋key"})
-    async def handle_set_key(self, event: AstrMessageEvent):
-        """查看或配置牌谱屋 (Amae-Koromo) API Key"""
-        args = re.sub(r'^(雀魂设置key|雀魂牌谱屋key)\s*', '', event.message_str.strip()).strip()
-        if not args:
-            cur_key = self.config.get("paipuwu_api_key", "")
-            header = self.config.get("paipuwu_custom_header", "X-API-Key")
-            if cur_key:
-                masked = cur_key[:4] + "***" + cur_key[-4:] if len(cur_key) >= 8 else "***"
-                yield event.plain_result(f"当前已配置牌谱屋 API Key: {masked} (Header: {header})\n如需更新请发送：雀魂设置key <新Key> [Header名]")
-            else:
-                yield event.plain_result("当前未配置牌谱屋 API Key。\n收到站长发放的 Key 后，请发送：雀魂设置key <API Key> [Header名]")
-            return
-
-        parts = args.split()
-        new_key = parts[0].strip()
-        custom_header = parts[1].strip() if len(parts) > 1 else self.config.get("paipuwu_custom_header", "X-API-Key")
-
-        self.config["paipuwu_api_key"] = new_key
-        self.config["paipuwu_custom_header"] = custom_header
-        self.query.set_api_key(new_key, custom_header)
-
-        # 保存配置到文件持久化
-        try:
-            config_file = self.plugin_data_dir / "config.json"
-            with open(config_file, "w", encoding="utf-8") as f:
-                json.dump(self.config, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.warning(f"保存插件配置到文件失败: {e}")
-
-        masked = new_key[:4] + "***" + new_key[-4:] if len(new_key) >= 8 else "***"
-        yield event.plain_result(f"牌谱屋 API Key 配置成功！\nKey: {masked}\nHeader: {custom_header}\n现在无需登录账号即可直接通过牌谱屋查询全服任意玩家的战绩与牌谱。")
 
     @filter.command("雀魂牌运")
     async def handle_luck(self, event: AstrMessageEvent):
@@ -548,7 +500,7 @@ class MajsoulPlugin(Star):
                     f"玩家「{target_nickname}」未在官方登录账号池中。\n"
                     f"通过牌谱屋公共接口获取对局失败: {err_msg}\n\n"
                     f"💡 解决方法：\n"
-                    f"1. 若已有牌谱屋 Key，发送「雀魂设置key <API Key>」配置后即可直接查询全服任意玩家；\n"
+                    f"1. 若已有牌谱屋 Key，请管理员在 AstrBot 后台插件配置中填入 paipuwu_api_key；\n"
                     f"2. 或由该玩家私聊发送「雀魂登录国服 <账号> <密码>」将账号加入官方登录池。"
                 )
         except Exception as e:
