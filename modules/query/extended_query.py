@@ -110,6 +110,7 @@ class MajsoulAPI:
         self.api_key = api_key.strip() if api_key else ""
         self.custom_header = custom_header.strip() if custom_header else "Authorization"
         self.session: Optional[aiohttp.ClientSession] = None
+        self._player_cache: Dict[Tuple[str, str], JsonDict] = {}
         self._rate_limit_lock = asyncio.Lock()
         self._last_request_time = 0.0
         self._min_interval = 1.0  # 保持最大 1 QPS 访问限制
@@ -235,33 +236,18 @@ class MajsoulAPI:
             direction = ""
         return f"{player_count}{room_name}{direction}"
 
-    async def detect_active_mode(self, nickname: str) -> GameMode:
-        """根据玩家最新对局时间戳，自动检测其最近活跃模式（三人 '3' vs 四人 '4'）"""
-        p4_ts = 0
-        p3_ts = 0
-        try:
-            p4 = await self.get_player_info(nickname, "4")
-            p4_ts = int(p4.get("latest_timestamp", 0) or 0)
-        except Exception:
-            pass
-
-        try:
-            p3 = await self.get_player_info(nickname, "3")
-            p3_ts = int(p3.get("latest_timestamp", 0) or 0)
-        except Exception:
-            pass
-
-        if p3_ts > p4_ts:
-            return "3"
-        return "4"
-
     async def get_player_info(self, nickname: str, mode: GameMode) -> JsonDict:
-        """获取玩家信息"""
-        encoded_nickname = urllib.parse.quote(nickname)
+        """获取玩家信息（内存缓存，避免重复请求牌谱屋搜索接口）"""
+        cache_key = (nickname.strip().lower(), str(mode))
+        if cache_key in self._player_cache:
+            return self._player_cache[cache_key]
+
+        encoded_nickname = urllib.parse.quote(nickname.strip())
         url = f"{self._get_api_url(mode)}/search_player/{encoded_nickname}"
         result = await self.request(url)
         if not result or not isinstance(result, list) or not result[0].get("id"):
             raise APIError(-1)
+        self._player_cache[cache_key] = result[0]
         return result[0]
 
     @handle_api_error
@@ -611,10 +597,6 @@ class MajsoulQuery:
             return await self.api.query_records(nickname, mode, limit, room_level, is_south)
         except Exception as e:
             return False, f"查询失败: {str(e)}"
-
-    async def detect_active_mode(self, nickname: str) -> GameMode:
-        """根据玩家最新对局时间戳，自动检测其最近活跃模式（三人 '3' vs 四人 '4'）"""
-        return await self.api.detect_active_mode(nickname)
 
     async def get_player_records_raw(
         self,

@@ -425,12 +425,7 @@ class MajsoulPlugin(Star):
                 yield event.plain_result(result if success else f"牌运分析失败: {result}")
                 return
 
-            # 途径 2：目标玩家未在官方账号池 -> 通过牌谱屋 API 获取对局列表，并拉取对应牌谱
-            # 若未指定 3人 / 4人，自动检测该玩家最近活跃模式
-            if target_is_3p is None:
-                detected_mode = await self.query.detect_active_mode(target_nickname)
-                target_is_3p = (detected_mode == "3")
-
+            # 途径 2：目标玩家未在官方账号池 -> 通过牌谱屋 API 获取对局列表（默认四人，指定三人时查三人）
             mode_arg = "3" if target_is_3p else "4"
             room_level_arg = "1" if target_room == "金之间" else ("2" if target_room == "玉之间" else ("3" if target_room == "王座间" else "0"))
             is_south_arg = target_south  # True, False 或 None (全涵盖)
