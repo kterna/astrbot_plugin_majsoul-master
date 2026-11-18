@@ -196,11 +196,10 @@ class MajsoulPlugin(Star):
 - 雀魂牌谱 昵称 三人 10：查询玩家最近10条三麻对局记录
 
 【牌运诊断】
-- 雀魂牌运：诊断最近 5 场的每一局起手向听数、首巡进张率与牌运评分（需已绑定账号）
+- 雀魂牌运：诊断最近 5 场的每一局起手向听数、首巡进张率与牌运评分（已绑定登录账号直接查全模式）
 - 雀魂牌运 10：诊断最近 10 场的综合牌运走势
 - 雀魂牌运 三人 [数量]：筛选最近的三人麻将对局进行牌运诊断
-- 雀魂牌运 金南 / 玉南 [数量]：筛选指定段位房间对局进行牌运诊断
-- 雀魂牌运 昵称 [模式] [数量]：指定玩家与模式进行牌运诊断
+- 雀魂牌运 昵称 <四人金|三人玉|金南等> [数量]：通过牌谱屋查询指定玩家与模式对局（非登录账号需指定模式）
 
 【牌谱拉取】
 - 雀魂review <牌谱URL或paipu_id>：拉取并缓存原始牌谱（raw.json）
@@ -346,42 +345,40 @@ class MajsoulPlugin(Star):
             target_south = None
             name_tokens = []
 
+            room_pattern = re.compile(
+                r'^(?P<mode>三人|四人|3人|4人|三麻|四麻|3麻|4麻|3p|4p)?(?P<room>金|玉|王座|王南|王东)?(?P<dir>东|南)?$',
+                re.IGNORECASE
+            )
+
             for p in parts:
                 if p.isdigit():
                     count = min(int(p), 15)
                     continue
 
                 norm = p.replace("麻将", "").replace("模式", "").replace("场次", "").replace("房", "").replace("之间", "").replace("场", "").strip()
-                matched_room = False
+                m = room_pattern.match(norm)
 
-                # 提取 3人 / 4人
-                if any(x in norm for x in ("三人", "三麻", "3人", "3麻", "3p", "3P")):
-                    target_is_3p = True
-                    matched_room = True
-                elif any(x in norm for x in ("四人", "四麻", "4人", "4麻", "4p", "4P")):
-                    target_is_3p = False
-                    matched_room = True
+                if m and (m.group('mode') or m.group('room') or m.group('dir')):
+                    mode_str = m.group('mode')
+                    room_str = m.group('room')
+                    dir_str = m.group('dir')
 
-                # 提取房间等级
-                if "金" in norm:
-                    target_room = "金之间"
-                    matched_room = True
-                elif "玉" in norm:
-                    target_room = "玉之间"
-                    matched_room = True
-                elif "王座" in norm or "王" in norm:
-                    target_room = "王座间"
-                    matched_room = True
+                    if mode_str:
+                        target_is_3p = any(x in mode_str.lower() for x in ("三", "3"))
 
-                # 提取风向
-                if "南" in norm:
-                    target_south = True
-                    matched_room = True
-                elif "东" in norm:
-                    target_south = False
-                    matched_room = True
+                    if room_str:
+                        if "金" in room_str:
+                            target_room = "金之间"
+                        elif "玉" in room_str:
+                            target_room = "玉之间"
+                        elif "王" in room_str:
+                            target_room = "王座间"
 
-                if not matched_room:
+                    if dir_str:
+                        target_south = (dir_str == "南")
+                    elif room_str in ("王南", "王东"):
+                        target_south = (room_str == "王南")
+                else:
                     name_tokens.append(p)
 
             query_nickname = " ".join(name_tokens).strip()
@@ -425,7 +422,14 @@ class MajsoulPlugin(Star):
                 yield event.plain_result(result if success else f"牌运分析失败: {result}")
                 return
 
-            # 途径 2：目标玩家未在官方账号池 -> 通过牌谱屋 API 获取对局列表（默认四人，指定三人时查三人）
+            # 途径 2：目标玩家未在官方账号池 -> 通过牌谱屋 API 获取对局列表（必须指定房间模式参数）
+            if not target_room:
+                yield event.plain_result(
+                    f"玩家「{target_nickname}」未在官方登录池中，通过牌谱屋查询时需指定房间模式（如：四人金、三人玉、金南等）。\n"
+                    f"示例：雀魂牌运 {target_nickname} 四人金"
+                )
+                return
+
             mode_arg = "3" if target_is_3p else "4"
             room_level_arg = "1" if target_room == "金之间" else ("2" if target_room == "玉之间" else ("3" if target_room == "王座间" else "0"))
             is_south_arg = target_south  # True, False 或 None (全涵盖)
