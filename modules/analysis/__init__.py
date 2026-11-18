@@ -6,9 +6,10 @@ from .mahjong_utils import (
     # 数据类
     HandComponents, UkeireOption, WaitingTile, YakuItem
 )
+from .luck_service import LuckAnalysisService
 
 __all__ = [
-    "PaiAnalyzer", "MahjongHelper",
+    "PaiAnalyzer", "MahjongHelper", "LuckAnalysisService",
     "HandAnalysisResult", "HandValueResult", "ShantenResult", "UkeireResult",
     "HandComponents", "UkeireOption", "WaitingTile", "YakuItem"
 ] 

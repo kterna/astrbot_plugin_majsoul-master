@@ -33,5 +33,10 @@
         "type": "int",
         "default": 600,
         "description": "下载雀魂外置资源包的超时时间（秒）"
+    },
+    "paipuwu_api_key": {
+        "type": "string",
+        "default": "",
+        "description": "牌谱屋 (Amae-Koromo) API Key（向站长申请后填入）"
     }
 }

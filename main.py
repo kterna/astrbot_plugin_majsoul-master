@@ -5,6 +5,7 @@ from astrbot.api import logger, llm_tool
 from .modules.query.extended_query import DEFAULT_LIMIT, MajsoulQuery
 from .modules.gacha.gacha import GachaSystem
 from .modules.analysis.mahjong_utils import PaiAnalyzer
+from .modules.analysis.luck_service import LuckAnalysisService
 from .modules.wordle.mahjong_wordle import MahjongWordle
 from .modules.wordle.multi_mahjong_wordle import MultiMahjongWordle
 from .modules.review import PaipuAnalysisService, ReviewService
@@ -20,7 +21,7 @@ import json
 import asyncio
 from pathlib import Path
 
-@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.6.1")
+@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.7.0")
 class MajsoulPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -31,14 +32,19 @@ class MajsoulPlugin(Star):
         # 初始化配置
         self.data_dir = os.path.join(os.path.dirname(__file__), "data")
         self.config = config or {}
+
         self.resource_pack = ResourcePackManager(self.plugin_data_dir, self.config)
         
         # 初始化各个系统
         self.api_url = "https://5-data.amae-koromo.com/api/v2"  # 使用新的API地址
+        self.paipuwu_api_key = str(self.config.get('paipuwu_api_key', '') or '').strip()
         self.default_pool = self.config.get('default_pool', 'standard')
         
         # 初始化模块
-        self.query = MajsoulQuery(self.api_url)
+        self.query = MajsoulQuery(
+            self.api_url,
+            api_key=self.paipuwu_api_key,
+        )
         self.gacha = GachaSystem(self.data_dir, resources_dir=str(self.resource_pack.resources_dir))
         self.pai_analyzer = PaiAnalyzer()
         
@@ -59,6 +65,7 @@ class MajsoulPlugin(Star):
             config=self.config,
         )
         self.paipu_analysis = PaipuAnalysisService(self.review_service)
+        self.luck_service = LuckAnalysisService(self.review_service)
         self.webui_api = MajsoulWebUIApi(self)
         self.webui_api.register(context)
 
@@ -186,6 +193,11 @@ class MajsoulPlugin(Star):
 - 雀魂牌谱 昵称 三人：查询玩家最近的三麻对局记录
 - 雀魂牌谱 昵称 三人 10：查询玩家最近10条三麻对局记录
 
+【牌运诊断】
+- 雀魂牌运 [数量]：诊断近期对局起手向听、首巡进张率与牌运走势（绑定账号直接查全模式）
+- 雀魂牌运 三人 [数量]：筛选三麻对局进行牌运诊断
+- 雀魂牌运 昵称 <四人金|三人玉|金南等> [数量]：查询指定玩家与模式（非绑定账号需指定模式）
+
 【牌谱拉取】
 - 雀魂review <牌谱URL或paipu_id>：拉取并缓存原始牌谱（raw.json）
 
@@ -262,24 +274,51 @@ class MajsoulPlugin(Star):
             # 去除命令前缀
             args = re.sub(r'^雀魂牌谱\s*', '', event.message_str.strip())
 
-            # 如果没有输入参数，尝试使用绑定的昵称
+            # 解析数量参数（最后一个纯数字参数）
+            parts = args.strip().split()
+            limit = DEFAULT_LIMIT
+            if parts and parts[-1].isdigit():
+                limit = min(int(parts[-1]), 30)  # 最多30条
+                args = ' '.join(parts[:-1]).strip()
+
+            # 优先使用官方长连接网关（方案A）
+            accounts = await self.review_service.store.list_accounts()
+            matched_acc = None
+            bound_nickname = self._get_bound_nickname(user_id)
+            if accounts:
+                if not args:
+                    if bound_nickname:
+                        matched_acc = next((a for a in accounts if a.nickname and a.nickname.lower() == bound_nickname.lower()), None)
+                else:
+                    target_arg = args.lower()
+                    matched_acc = next((a for a in accounts if (a.nickname and a.nickname.lower() == target_arg) or str(a.uid) == target_arg), None)
+
+            # 如果没有输入参数且未绑定，直接提示绑定
+            if not args and not bound_nickname:
+                yield event.plain_result("未检测到绑定账号。请先发送「雀魂绑定 你的昵称」绑定账号后重试，或直接输入「雀魂牌谱 你的昵称」。")
+                return
+
+            if matched_acc:
+                try:
+                    records = await self.review_service.fetch_recent_records(count=limit, account_uid=matched_acc.uid)
+                    if not records:
+                        yield event.plain_result(f"玩家 {matched_acc.nickname or matched_acc.uid} 暂无对局记录。")
+                        return
+                    result_text = self.review_service.format_recent_records(records, target_account_id=int(matched_acc.uid))
+                    yield event.plain_result(result_text)
+                    return
+                except Exception as exc:
+                    logger.warning(f"[majsoul-review] 官方网关拉取对局记录异常，将回退到第三方接口: {exc}")
+
+            # 未在官方账号池匹配时，走第三方牌谱屋接口
             if not args:
-                bound_nickname = self._get_bound_nickname(user_id)
                 if bound_nickname:
                     args = bound_nickname
                 else:
                     yield event.plain_result("请输入要查询的昵称，或使用 雀魂绑定 昵称 绑定账号")
                     return
             else:
-                # 尝试在房间参数前添加绑定昵称
                 args = self._prepend_bound_nickname(args, user_id)
-
-            # 解析数量参数（最后一个纯数字参数）
-            parts = args.strip().split()
-            limit = DEFAULT_LIMIT
-            if parts and parts[-1].isdigit():
-                limit = min(int(parts[-1]), 30)  # 最多30条
-                args = ' '.join(parts[:-1])
 
             # 解析参数并执行查询
             nickname, room_level, is_south, mode = self.query.parse_command_args(args)
@@ -287,6 +326,143 @@ class MajsoulPlugin(Star):
             yield event.plain_result(result if success else f"查询失败: {result}")
         except Exception as e:
             yield event.plain_result(f"处理查询命令时出错: {str(e)}")
+
+    @filter.command("雀魂牌运")
+    async def handle_luck(self, event: AstrMessageEvent):
+        """诊断玩家近期雀魂牌运状态（起手向听、进张率与运势分析，支持全段位与双轨拉取）"""
+        try:
+            user_id = str(event.message_obj.sender.user_id)
+            args = re.sub(r'^雀魂牌运\s*', '', event.message_str.strip())
+
+            # 解析参数：数量、房间/段位/人数过滤、以及目标昵称
+            parts = args.strip().split()
+            count = 5
+            target_is_3p = None
+            target_room = None
+            target_south = None
+            name_tokens = []
+
+            room_pattern = re.compile(
+                r'^(?P<mode>三人|四人|3人|4人|三麻|四麻|3麻|4麻|3p|4p)?(?P<room>金|玉|王座|王南|王东)?(?P<dir>东|南)?$',
+                re.IGNORECASE
+            )
+
+            for p in parts:
+                if p.isdigit():
+                    count = min(int(p), 15)
+                    continue
+
+                norm = p.replace("麻将", "").replace("模式", "").replace("场次", "").replace("房", "").replace("之间", "").replace("场", "").strip()
+                m = room_pattern.match(norm)
+
+                if m and (m.group('mode') or m.group('room') or m.group('dir')):
+                    mode_str = m.group('mode')
+                    room_str = m.group('room')
+                    dir_str = m.group('dir')
+
+                    if mode_str:
+                        target_is_3p = any(x in mode_str.lower() for x in ("三", "3"))
+
+                    if room_str:
+                        if "金" in room_str:
+                            target_room = "金之间"
+                        elif "玉" in room_str:
+                            target_room = "玉之间"
+                        elif "王" in room_str:
+                            target_room = "王座间"
+
+                    if dir_str:
+                        target_south = (dir_str == "南")
+                    elif room_str in ("王南", "王东"):
+                        target_south = (room_str == "王南")
+                else:
+                    name_tokens.append(p)
+
+            query_nickname = " ".join(name_tokens).strip()
+
+            target_nickname = None
+            account_uid = None
+
+            accounts = await self.review_service.store.list_accounts()
+
+            if query_nickname:
+                target_nickname = query_nickname
+                if accounts:
+                    matched = next((a for a in accounts if (a.nickname and a.nickname.lower() == query_nickname.lower()) or str(a.uid) == query_nickname), None)
+                    if matched:
+                        account_uid = matched.uid
+                        target_nickname = matched.nickname
+            else:
+                bound_nickname = self._get_bound_nickname(user_id)
+                if bound_nickname:
+                    target_nickname = bound_nickname
+                    if accounts:
+                        matched = next((a for a in accounts if a.nickname and a.nickname.lower() == bound_nickname.lower()), None)
+                        if matched:
+                            account_uid = matched.uid
+                else:
+                    yield event.plain_result(
+                        "未检测到绑定账号。请先发送「雀魂绑定 你的昵称」绑定账号后重试，或直接输入「雀魂牌运 你的昵称」。"
+                    )
+                    return
+
+            # 途径 1：目标玩家在官方账号池中 -> 优先走官方长连接拉取对局列表
+            if account_uid:
+                success, result = await self.luck_service.analyze_luck(
+                    count=count,
+                    account_uid=account_uid,
+                    target_nickname=target_nickname,
+                    target_is_3p=target_is_3p,
+                    target_room=target_room,
+                    target_south=target_south,
+                )
+                yield event.plain_result(result if success else f"牌运分析失败: {result}")
+                return
+
+            # 途径 2：目标玩家未在官方账号池 -> 通过牌谱屋 API 获取对局列表（必须指定房间模式参数）
+            if not target_room:
+                yield event.plain_result(
+                    f"查询非绑定账号「{target_nickname}」需指定房间模式（如：四人金、三人玉、金南等）。\n"
+                    f"示例：雀魂牌运 {target_nickname} 四人金"
+                )
+                return
+
+            mode_arg = "3" if target_is_3p else "4"
+            room_level_arg = "1" if target_room == "金之间" else ("2" if target_room == "玉之间" else ("3" if target_room == "王座间" else "0"))
+            is_south_arg = target_south  # True, False 或 None (全涵盖)
+
+            ok, raw_records = await self.query.get_player_records_raw(
+                nickname=target_nickname,
+                mode=mode_arg,
+                limit=count,
+                room_level=room_level_arg,
+                is_south=is_south_arg,
+            )
+            if ok and isinstance(raw_records, list) and raw_records:
+                custom_records = []
+                for item in raw_records:
+                    u = item.get("uuid", "")
+                    if not u:
+                        continue
+                    custom_records.append({
+                        "uuid": u,
+                        "startTime": item.get("startTime", 0),
+                        "endTime": item.get("endTime", 0),
+                        "mode_id": item.get("modeId", 0),
+                        "players": item.get("players", []),
+                    })
+                success, result = await self.luck_service.analyze_luck(
+                    count=count,
+                    target_nickname=target_nickname,
+                    custom_records=custom_records,
+                )
+                yield event.plain_result(result if success else f"牌运分析失败: {result}")
+                return
+            else:
+                err_msg = str(raw_records) if not ok else "未查询到对局记录"
+                yield event.plain_result(f"未找到玩家「{target_nickname}」近期的有效对局记录（{err_msg}）。")
+        except Exception as e:
+            yield event.plain_result(f"处理牌运命令时出错: {str(e)}")
 
     @filter.command("雀魂review")
     async def handle_review(self, event: AstrMessageEvent):
@@ -296,7 +472,6 @@ class MajsoulPlugin(Star):
             yield event.plain_result("请输入牌谱URL或paipu_id，例如：雀魂review https://game.maj-soul.com/1/?paipu=xxxx")
             return
 
-        yield event.plain_result("正在拉取牌谱，请稍候...")
         try:
             success, message, _images = await asyncio.wait_for(
                 self.review_service.do_review(args),

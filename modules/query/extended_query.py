@@ -24,11 +24,12 @@ DEFAULT_DIRECTION = True  # 默认南场
 
 # 错误信息
 ERROR_MESSAGES = {
-                -1: "未找到玩家",
-                -2: "查询超时，请稍后再试",
-                -3: "API服务器错误",
+    -1: "未找到玩家",
+    -2: "查询超时，请稍后再试",
+    -3: "API服务器错误",
     -4: "参数错误",
     -404: "网络连接错误",
+    -429: "牌谱屋访问频次受限或未配置 API Key。请管理员在后台配置牌谱屋 Key，或通过「雀魂绑定」绑定账号后查询。",
     -500: "服务器内部错误"
 }
 
@@ -101,17 +102,34 @@ def handle_api_error(func):
 class MajsoulAPI:
     """雀魂API客户端"""
     
-    def __init__(self, base_url: str = "https://5-data.amae-koromo.com/api/v2"):
+    def __init__(self, base_url: str = "https://5-data.amae-koromo.com/api/v2", api_key: str = ""):
         """初始化API客户端"""
         self.base_url = base_url.rstrip('/')
         self.pl4_url = f"{self.base_url}/pl4"
         self.pl3_url = f"{self.base_url}/pl3"
+        self.api_key = api_key.strip() if api_key else ""
         self.session: Optional[aiohttp.ClientSession] = None
+        self._player_cache: Dict[Tuple[str, str], JsonDict] = {}
+        self._rate_limit_lock = asyncio.Lock()
+        self._last_request_time = 0.0
+        self._min_interval = 1.0  # 保持最大 1 QPS 访问限制
+        self._rebuild_headers()
+
+    def _rebuild_headers(self) -> None:
         self.default_headers = {
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
             "Accept": "application/json"
         }
-        
+        if self.api_key:
+            auth_val = self.api_key if self.api_key.lower().startswith("bearer ") else f"Bearer {self.api_key}"
+            self.default_headers["Authorization"] = auth_val
+
+    def set_api_key(self, api_key: str) -> None:
+        """动态配置或更新牌谱屋 API Key"""
+        self.api_key = api_key.strip() if api_key else ""
+        self._rebuild_headers()
+        self.session = None
+
     async def ensure_session(self) -> None:
         """确保会话已创建"""
         if self.session is None or self.session.closed:
@@ -124,10 +142,23 @@ class MajsoulAPI:
         self.session = None
         
     async def request(self, url: str) -> JsonDict:
-        """发送HTTP请求并返回JSON数据"""
+        """发送HTTP请求并返回JSON数据（严格限制最大 1 QPS）"""
         await self.ensure_session()
+        async with self._rate_limit_lock:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
+            now = loop.time()
+            elapsed = now - self._last_request_time
+            if elapsed < self._min_interval:
+                await asyncio.sleep(self._min_interval - elapsed)
+            self._last_request_time = loop.time()
+
         try:
             async with self.session.get(url, timeout=DEFAULT_TIMEOUT) as response:
+                if response.status == 429:
+                    raise APIError(-429)
                 if response.status != 200:
                     raise APIError(-404)
                 
@@ -146,35 +177,73 @@ class MajsoulAPI:
         """获取API基础URL"""
         return self.pl4_url if mode == "4" else self.pl3_url
 
-    def _get_game_mode(self, room_level: RoomLevel, is_south: bool, mode: GameMode = DEFAULT_MODE) -> str:
-        """获取游戏模式代码
-        
-        Args:
-            room_level: 房间等级 ("1"=金, "2"=玉, "3"=王座)
-            is_south: 是否为南场
-            mode: 游戏模式 ("3"=三麻, "4"=四麻)
-            
-        Returns:
-            str: 游戏模式代码
-        """
-        key = (room_level, is_south, mode)
-        default_key = ("1", True, mode)  # 默认为对应模式的金之间南场
-        return GAME_MODES.get(key, GAME_MODES[default_key])
+    def _get_game_mode(self, room_level: Optional[RoomLevel] = None, is_south: Optional[bool] = None, mode: GameMode = DEFAULT_MODE) -> str:
+        """获取游戏模式代码（支持单模式与全段位多模式）"""
+        is_3p = str(mode) == "3"
+        room = str(room_level) if room_level is not None else "0"
 
-    def _format_mode_label(self, room_level: RoomLevel, is_south: bool, mode: GameMode = DEFAULT_MODE) -> str:
-        """格式化模式显示文本（如：三人玉之间南场）"""
-        room_name = ROOM_NAMES.get(room_level, "全部场次")
-        player_count = "四人" if mode == "4" else "三人"
-        direction = "南场" if is_south else "东场"
+        # 全部场次 (room 为 "0", None, 或空)
+        if room in ("0", "None", "", "all"):
+            if is_south is True:
+                return "26,24,22" if is_3p else "16,12,9"
+            elif is_south is False:
+                return "25,23,21" if is_3p else "15,11,8"
+            else:
+                return "26,25,24,23,22,21" if is_3p else "16,15,12,11,9,8"
+
+        # 金之间
+        if room == "1":
+            if is_south is True:
+                return "22" if is_3p else "9"
+            elif is_south is False:
+                return "21" if is_3p else "8"
+            else:
+                return "22,21" if is_3p else "9,8"
+
+        # 玉之间
+        if room == "2":
+            if is_south is True:
+                return "24" if is_3p else "12"
+            elif is_south is False:
+                return "23" if is_3p else "11"
+            else:
+                return "24,23" if is_3p else "12,11"
+
+        # 王座之间
+        if room == "3":
+            if is_south is True:
+                return "26" if is_3p else "16"
+            elif is_south is False:
+                return "25" if is_3p else "15"
+            else:
+                return "26,25" if is_3p else "16,15"
+
+        return "26,25,24,23,22,21" if is_3p else "16,15,12,11,9,8"
+
+    def _format_mode_label(self, room_level: Optional[RoomLevel], is_south: Optional[bool], mode: GameMode = DEFAULT_MODE) -> str:
+        """格式化模式显示文本（如：三人玉之间南场、四人全部场次）"""
+        room_name = ROOM_NAMES.get(str(room_level), "全部场次") if room_level is not None else "全部场次"
+        player_count = "四人" if str(mode) == "4" else "三人"
+        if is_south is True:
+            direction = "南场"
+        elif is_south is False:
+            direction = "东场"
+        else:
+            direction = ""
         return f"{player_count}{room_name}{direction}"
 
     async def get_player_info(self, nickname: str, mode: GameMode) -> JsonDict:
-        """获取玩家信息"""
-        encoded_nickname = urllib.parse.quote(nickname)
+        """获取玩家信息（内存缓存，避免重复请求牌谱屋搜索接口）"""
+        cache_key = (nickname.strip().lower(), str(mode))
+        if cache_key in self._player_cache:
+            return self._player_cache[cache_key]
+
+        encoded_nickname = urllib.parse.quote(nickname.strip())
         url = f"{self._get_api_url(mode)}/search_player/{encoded_nickname}"
         result = await self.request(url)
         if not result or not isinstance(result, list) or not result[0].get("id"):
             raise APIError(-1)
+        self._player_cache[cache_key] = result[0]
         return result[0]
 
     @handle_api_error
@@ -215,6 +284,26 @@ class MajsoulAPI:
             raise APIError(-1)
             
         return self.format_records(records, room_level, is_south, mode, player_id)
+
+    async def fetch_player_records_raw(
+        self,
+        nickname: str,
+        mode: GameMode = DEFAULT_MODE,
+        limit: int = DEFAULT_LIMIT,
+        room_level: Optional[RoomLevel] = None,
+        is_south: Optional[bool] = None,
+    ) -> List[Dict]:
+        """获取玩家对局原始列表（用于跨源牌运诊断等）"""
+        player = await self.get_player_info(nickname, mode)
+        player_id = int(player.get("id", 0))
+        current_timestamp = int(datetime.now().timestamp() * 1000)
+        game_mode = self._get_game_mode(room_level, is_south, mode)
+        
+        url = f"{self._get_api_url(mode)}/player_records/{player['id']}/{current_timestamp}/{START_TIME}?limit={limit}&mode={game_mode}&descending=true"
+        records = await self.request(url)
+        if not records or not isinstance(records, list):
+            return []
+        return records
 
     @handle_api_error
     async def query_extended_stats(self, nickname: str, mode: GameMode, room_level: RoomLevel, is_south: bool) -> str:
@@ -474,11 +563,15 @@ class MajsoulAPI:
         return "\n".join(result).strip()
 
 class MajsoulQuery:
-    """雀魂查询功能"""
+    """雀魂查询功能（支持牌谱屋 Key 鉴权与双轨制拉取）"""
     
-    def __init__(self, api_url: str = "https://5-data.amae-koromo.com/api/v2"):
+    def __init__(self, api_url: str = "https://5-data.amae-koromo.com/api/v2", api_key: str = ""):
         """初始化查询功能"""
-        self.api = MajsoulAPI(api_url)
+        self.api = MajsoulAPI(api_url, api_key=api_key)
+
+    def set_api_key(self, api_key: str) -> None:
+        """动态配置或更新牌谱屋 API Key"""
+        self.api.set_api_key(api_key)
         
     async def close(self) -> None:
         """关闭API连接"""
@@ -500,6 +593,23 @@ class MajsoulQuery:
             return await self.api.query_records(nickname, mode, limit, room_level, is_south)
         except Exception as e:
             return False, f"查询失败: {str(e)}"
+
+    async def get_player_records_raw(
+        self,
+        nickname: str,
+        mode: GameMode = DEFAULT_MODE,
+        limit: int = DEFAULT_LIMIT,
+        room_level: Optional[RoomLevel] = None,
+        is_south: Optional[bool] = None,
+    ) -> Tuple[bool, Union[List[Dict], str]]:
+        """获取玩家对局原始列表（用于牌运服务）"""
+        try:
+            records = await self.api.fetch_player_records_raw(nickname, mode, limit, room_level, is_south)
+            return True, records
+        except APIError as e:
+            return False, e.message
+        except Exception as e:
+            return False, str(e)
 
     async def query_extended_stats(self, nickname: str, mode: GameMode, room_level: RoomLevel, is_south: bool) -> Tuple[bool, str]:
         """查询玩家详细战绩统计"""
