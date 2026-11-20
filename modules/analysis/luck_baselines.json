@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "hand_size": 13,
+  "definitions": {
+    "shanten": "minimum of regular, seven pairs, and thirteen orphans",
+    "good_hands": "shanten <= 2",
+    "bad_hands": "shanten >= 4",
+    "dora": "ordinary dora plus red dora, with overlapping rewards added",
+    "north": "North tiles held before kita; not a realized kita reward",
+    "tile_sets": {
+      "4p": "136 tiles, three red fives",
+      "3p": "108 tiles, no 2m..8m, two red fives"
+    }
+  },
+  "provenance": {
+    "generated_at": "2026-11-18T09:32:44.577602+00:00",
+    "method": "uniform sampling of physical tiles without replacement",
+    "seed": 20261118,
+    "python_version": "3.11.2",
+    "mahjong_version": "2.0.0",
+    "simulation_script_sha256": "f7f1aa0147a7b38e3f7fcafb9cfd6bac5c6d3e48e07182dba48b309729fbe7f8",
+    "shanten_source_sha256": "8917bcef71ff1d102753bf161e0a2af18a2dcdc2842d0291ec18f16779ee5a15",
+    "cross_checks": [
+      "http://mahjong.ara.black/column/haipai.htm",
+      "https://blog.kobalab.net/entry/20180118/1516202840"
+    ]
+  },
+  "modes": {
+    "4p": {
+      "sample_count": 1000000,
+      "shanten_counts": {
+        "0": 68,
+        "1": 6178,
+        "2": 93437,
+        "3": 362057,
+        "4": 398918,
+        "5": 130900,
+        "6": 8442
+      },
+      "reward_sums": {
+        "normal_dora": 384765,
+        "red_dora": 286969,
+        "north_tiles": 0
+      }
+    },
+    "3p": {
+      "sample_count": 1000000,
+      "shanten_counts": {
+        "0": 202,
+        "1": 11580,
+        "2": 132195,
+        "3": 397506,
+        "4": 368167,
+        "5": 88337,
+        "6": 2013
+      },
+      "reward_sums": {
+        "normal_dora": 486941,
+        "red_dora": 240853,
+        "north_tiles": 481877
+      }
+    }
+  }
+}

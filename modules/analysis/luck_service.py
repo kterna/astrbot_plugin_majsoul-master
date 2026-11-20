@@ -1,41 +1,12 @@
-import asyncio
-import json
 import logging
 from typing import Dict, List, Optional, Tuple, Any
-from pathlib import Path
 from mahjong.shanten import Shanten
+from .luck_baseline import BASELINES, shanten_quality_score
 from ..review.constants import ROOM_MODE_MAP
 
 logger = logging.getLogger("astrbot")
 
 shanten_calc = Shanten()
-
-# 日麻数理统计理论基准值配置（源自《科学する麻雀》与海量牌谱拟合）
-BASELINES = {
-    "4p": {
-        "label": "四麻",
-        "avg_shanten": 3.36,
-        "good_hands": 17.5,
-        "bad_hands": 42.0,
-        "avg_dora": 0.67,
-        "shanten_weight": 80.0,
-        "good_weight": 60.0,
-        "bad_weight": 40.0,
-        "dora_weight": 25.0,
-    },
-    "3p": {
-        "label": "三麻",
-        "avg_shanten": 2.92,
-        "good_hands": 38.0,
-        "bad_hands": 21.5,
-        "avg_dora": 1.20,
-        "shanten_weight": 80.0,
-        "good_weight": 55.0,
-        "bad_weight": 45.0,
-        "dora_weight": 20.0,
-    },
-}
-
 
 def tenhou_to_34(t: int) -> Optional[int]:
     """将天凤/雀魂原始牌ID (11-53) 转换为 0-33 的牌种索引"""
@@ -57,17 +28,15 @@ def tenhou_to_34(t: int) -> Optional[int]:
     return None
 
 
-def is_dora_tile(tile_code: int, dora_indicator: int, is_3p: bool = False) -> bool:
-    """判定某张牌是否是宝牌（含赤宝牌、指示牌宝牌，以及三麻特有的拔北宝牌）"""
-    if tile_code in (51, 52, 53):
-        return True  # 赤宝牌必为宝牌
-    if is_3p and tile_code == 44:
-        return True  # 三人麻将中北风固定为拔北宝牌
-
+def count_tile_dora(tile_code: int, dora_indicator: int, is_3p: bool = False) -> int:
+    """Count ordinary and red dora rewards; unextracted North adds no kita reward."""
     ind_34 = tenhou_to_34(dora_indicator)
     tile_34 = tenhou_to_34(tile_code)
-    if ind_34 is None or tile_34 is None:
-        return False
+    if tile_34 is None:
+        return 0
+    red_dora = int(tile_code in (51, 52, 53))
+    if ind_34 is None:
+        return red_dora
 
     # 根据宝牌指示牌推算宝牌牌种
     if ind_34 < 9:  # 万
@@ -84,38 +53,51 @@ def is_dora_tile(tile_code: int, dora_indicator: int, is_3p: bool = False) -> bo
     else:  # 三元牌 (白->发->中->白)
         expected = 31 + (ind_34 - 31 + 1) % 3
 
-    return tile_34 == expected
+    return red_dora + int(tile_34 == expected)
 
 
-def calculate_starting_ukeire(hand_34: List[int], current_shanten: int) -> Tuple[int, int]:
-    """计算 13 张起手手牌的有效进张种类数和剩余有效张数"""
+def calculate_starting_ukeire(
+    hand_34: List[int],
+    current_shanten: int,
+    is_3p: bool = False,
+    dora_indicator: Optional[int] = None,
+) -> Tuple[int, int]:
+    """Count legal improving draws, excluding the visible indicator's copy.
+
+    A complete 14-tile hand reduces tenpai from 0 to -1 and is also an
+    improving draw. Only starting tiles and the initial indicator are visible;
+    opponents' unknown hands are part of the unseen population.
+    """
     advancing_tiles = 0
     advancing_types = 0
+    indicator_34 = tenhou_to_34(dora_indicator) if dora_indicator is not None else None
     for t in range(34):
-        if hand_34[t] >= 4:
+        if is_3p and 1 <= t <= 7:
+            continue
+        remaining = 4 - hand_34[t] - int(t == indicator_34)
+        if remaining <= 0:
             continue
         hand_34[t] += 1
-        can_advance = False
-        for d in range(34):
-            if hand_34[d] > 0:
-                hand_34[d] -= 1
-                if shanten_calc.calculate_shanten(hand_34) < current_shanten:
-                    can_advance = True
-                hand_34[d] += 1
-                if can_advance:
-                    break
-        hand_34[t] -= 1
+        try:
+            can_advance = shanten_calc.calculate_shanten(hand_34) < current_shanten
+        finally:
+            hand_34[t] -= 1
         if can_advance:
             advancing_types += 1
-            advancing_tiles += (4 - hand_34[t])
+            advancing_tiles += remaining
     return advancing_types, advancing_tiles
 
 
 class LuckAnalysisService:
-    """雀魂近期牌运诊断分析服务（支持全段位识别与三麻/四麻自适应混合加权）"""
+    """近期13张配牌统计，按三麻/四麻随机分布评价起手质量。"""
 
     def __init__(self, review_service):
         self.review_service = review_service
+        logger.info(
+            "[majsoul-luck] 已加载13张配牌基准：四麻 n=%s mean=%.6f；三麻 n=%s mean=%.6f",
+            BASELINES["4p"]["sample_count"], BASELINES["4p"]["avg_shanten"],
+            BASELINES["3p"]["sample_count"], BASELINES["3p"]["avg_shanten"],
+        )
 
     async def analyze_luck(
         self,
@@ -127,7 +109,7 @@ class LuckAnalysisService:
         target_south: Optional[bool] = None,
         custom_records: Optional[List[Dict]] = None,
     ) -> Tuple[bool, str]:
-        """拉取最近 count 场对局，逐局解析起手向听、进张率与运势得分（支持官方网关与牌谱屋双源）"""
+        """拉取最近count场对局，统计起手向听、进张概率、宝牌和配牌质量。"""
         try:
             if not target_nickname and not account_uid and not custom_records:
                 return False, "未指定查询昵称。请先发送「雀魂绑定 你的昵称」绑定账号后重试，或直接输入「雀魂牌运 你的昵称」。"
@@ -259,18 +241,30 @@ class LuckAnalysisService:
                         continue
                     hand = rd[hand_idx]
                     dora_ind = rd[2][0] if len(rd) > 2 and len(rd[2]) > 0 else 0
+                    if len(hand) != 13:
+                        logger.warning("[majsoul-luck] 跳过非13张起手，round=%s", round_idx + 1)
+                        continue
+                    indicator_34 = tenhou_to_34(dora_ind)
+                    if indicator_34 is None or (is_3p and 1 <= indicator_34 <= 7):
+                        logger.warning("[majsoul-luck] 跳过缺少有效初始指示牌的小局，round=%s", round_idx + 1)
+                        continue
 
                     t34 = [0] * 34
                     dora_count = 0
+                    valid_hand = True
                     for t in hand:
                         idx_34 = tenhou_to_34(t)
-                        if idx_34 is not None:
-                            t34[idx_34] += 1
-                        if is_dora_tile(t, dora_ind, is_3p=is_3p):
-                            dora_count += 1
+                        if idx_34 is None or (is_3p and 1 <= idx_34 <= 7):
+                            valid_hand = False
+                            break
+                        t34[idx_34] += 1
+                        dora_count += count_tile_dora(t, dora_ind, is_3p=is_3p)
+                    if not valid_hand or max(t34) > 4 or t34[indicator_34] == 4:
+                        logger.warning("[majsoul-luck] 跳过无效起手牌，round=%s", round_idx + 1)
+                        continue
 
                     s = shanten_calc.calculate_shanten(t34)
-                    u_types, u_count = calculate_starting_ukeire(t34, s)
+                    u_types, u_count = calculate_starting_ukeire(t34, s, is_3p=is_3p, dora_indicator=dora_ind)
                     u_rate = (u_count / unseen_at_start) * 100
 
                     # 解析单局胜负与得失分
@@ -307,6 +301,8 @@ class LuckAnalysisService:
                         "ukeire_count": u_count,
                         "ukeire_rate": u_rate,
                         "dora": dora_count,
+                        "north": t34[30] if is_3p else 0,
+                        "quality_score": shanten_quality_score(s, is_3p=is_3p),
                         "outcome": outcome,
                         "delta": my_delta,
                         "is_3p": is_3p,
@@ -340,6 +336,7 @@ class LuckAnalysisService:
                     "avg_shanten": avg_s,
                     "avg_dora": avg_d,
                     "avg_ukeire_rate": avg_u,
+                    "quality_score": sum(x["quality_score"] for x in game_rounds) / len(game_rounds),
                     "wins": wins,
                     "deal_ins": deal_ins,
                 })
@@ -363,34 +360,18 @@ class LuckAnalysisService:
             total_wins = sum(1 for x in all_rounds if x["outcome"] == "和了") / total_r * 100
             total_deal_ins = sum(1 for x in all_rounds if x["outcome"] == "放铳") / total_r * 100
 
-            # 逐局自适应基准偏差计算（支持纯三麻、纯四麻与三四麻混合加权）
-            shanten_diffs = []
-            good_diffs = []
-            bad_diffs = []
-            dora_diffs = []
-            for r_info in all_rounds:
-                bl = BASELINES["3p"] if r_info["is_3p"] else BASELINES["4p"]
-                shanten_diffs.append(bl["avg_shanten"] - r_info["shanten"])
-                good_diffs.append((1.0 if r_info["shanten"] <= 2 else 0.0) - bl["good_hands"] / 100.0)
-                bad_diffs.append((1.0 if r_info["shanten"] >= 4 else 0.0) - bl["bad_hands"] / 100.0)
-                dora_diffs.append(r_info["dora"] - bl["avg_dora"])
-
-            avg_shanten_diff = sum(shanten_diffs) / total_r
-            avg_good_diff = sum(good_diffs) / total_r
-            avg_bad_diff = sum(bad_diffs) / total_r
-            avg_dora_diff = sum(dora_diffs) / total_r
-
-            luck_score = (
-                50.0
-                + avg_shanten_diff * 80.0
-                + avg_good_diff * 55.0
-                - avg_bad_diff * 45.0
-                + avg_dora_diff * 20.0
-            )
-            luck_score = max(5.0, min(99.0, luck_score))
-
-            rooms = [g.get("room_name") for g in game_summaries if g.get("room_name")]
-            predominant_room = max(set(rooms), key=rooms.count) if rooms else ""
+            # 混合模式按实际小局数匹配基准，不能按比赛场数加权。
+            expected_baselines = {
+                key: sum(BASELINES["3p" if r["is_3p"] else "4p"][key] for r in all_rounds) / total_r
+                for key in ("avg_shanten", "good_hands", "bad_hands", "avg_dora")
+            }
+            avg_shanten_diff = expected_baselines["avg_shanten"] - overall_shanten
+            avg_good_diff = (good_hands - expected_baselines["good_hands"]) / 100
+            avg_bad_diff = (bad_hands - expected_baselines["bad_hands"]) / 100
+            avg_dora_diff = overall_dora - expected_baselines["avg_dora"]
+            quality_score = sum(r["quality_score"] for r in all_rounds) / total_r
+            rounds_3p = sum(r["is_3p"] for r in all_rounds)
+            overall_north = sum(r["north"] for r in all_rounds) / rounds_3p if rounds_3p else 0.0
             modes = [g.get("mode_name") for g in game_summaries if g.get("mode_name")]
             predominant_mode = max(set(modes), key=modes.count) if modes else ""
 
@@ -401,10 +382,12 @@ class LuckAnalysisService:
                 count_3p=count_3p,
                 count_4p=count_4p,
                 predominant_mode=predominant_mode,
-                room_name=predominant_room,
                 sample_games=len(game_summaries),
                 sample_rounds=total_r,
-                luck_score=luck_score,
+                quality_score=quality_score,
+                expected_baselines=expected_baselines,
+                rounds_3p=rounds_3p,
+                overall_north=overall_north,
                 overall_shanten=overall_shanten,
                 avg_shanten_diff=avg_shanten_diff,
                 good_hands=good_hands,
@@ -432,10 +415,12 @@ class LuckAnalysisService:
         count_3p: int,
         count_4p: int,
         predominant_mode: str,
-        room_name: str,
         sample_games: int,
         sample_rounds: int,
-        luck_score: float,
+        quality_score: float,
+        expected_baselines: Dict[str, float],
+        rounds_3p: int,
+        overall_north: float,
         overall_shanten: float,
         avg_shanten_diff: float,
         good_hands: float,
@@ -449,80 +434,50 @@ class LuckAnalysisService:
         total_deal_ins: float,
         game_summaries: List[Dict[str, Any]],
     ) -> str:
-        """排版格式化牌运诊断输出"""
-        if luck_score >= 80:
-            tier_title = "欧皇神抽 · 大顺调 🌟"
-            advice = "天命所归！起手向听充盈、宝牌在握，请保持积极进攻，果断立直攻擂！"
-        elif luck_score >= 65:
-            tier_title = "运势偏强 · 小顺调 ✨"
-            advice = "配牌扎实平稳，进张节奏流畅。按既定策略稳健推进即可持续上分。"
-        elif luck_score >= 45:
-            tier_title = "气运平稳 · 常态调 ⚖️"
-            advice = "起手与摸调处于大数定理均值区间，胜负关键在于牌效取舍与防守细腻度。"
-        elif luck_score >= 30:
-            tier_title = "气运受阻 · 偏恶调 🌧️"
-            advice = "起手向听较深、优质好型匮乏。切勿因焦躁盲目进攻，多注重兜牌弃和，等待转运。"
-        else:
-            tier_title = "深渊恶调 · 制裁拉满 ⚡"
-            advice = "系统发牌恶意拉满！配牌荒漠且摸调滞后。建议暂停排位修整心态，或以纯防守防跌分！"
-
-        if "玉" in room_name or "王座" in room_name:
-            advice += "（玉场环境对手弃和敏锐，深向听时更须绝对弃和防点大铳）"
-        elif "金" in room_name:
-            advice += "（金场环境进攻较莽，即便恶调只要做好坚决防守，吃他人放铳红利亦能避四）"
-
+        """所有基准展示均来自同一份13张随机配牌数据。"""
         if is_pure_3p:
-            mode_header = f"模式：{predominant_mode or '三人麻将'}"
+            mode_label = predominant_mode or "三人麻将"
             bl_label = "三麻"
-            s_metric = f"均 {overall_shanten:.2f} 向听 (基准 2.92, 偏差 {avg_shanten_diff:+.2f})"
-            good_metric = f"{good_hands:.1f}% (基准 38.0%, 偏差 {avg_good_diff * 100:+.1f}%)"
-            bad_metric = f"{bad_hands:.1f}% (基准 21.5%, 偏差 {avg_bad_diff * 100:+.1f}%)"
-            dora_metric = f"均 {overall_dora:.2f} 张 (基准 1.20 张, 偏差 {avg_dora_diff:+.2f})"
         elif is_pure_4p:
-            mode_header = f"模式：{predominant_mode or '四人麻将'}"
+            mode_label = predominant_mode or "四人麻将"
             bl_label = "四麻"
-            s_metric = f"均 {overall_shanten:.2f} 向听 (基准 3.36, 偏差 {avg_shanten_diff:+.2f})"
-            good_metric = f"{good_hands:.1f}% (基准 17.5%, 偏差 {avg_good_diff * 100:+.1f}%)"
-            bad_metric = f"{bad_hands:.1f}% (基准 42.0%, 偏差 {avg_bad_diff * 100:+.1f}%)"
-            dora_metric = f"均 {overall_dora:.2f} 张 (基准 0.67 张, 偏差 {avg_dora_diff:+.2f})"
         else:
-            mode_header = f"模式：三麻/四麻混合 (三麻 {count_3p} 场 / 四麻 {count_4p} 场)"
-            bl_label = "三/四麻自适应加权"
-            s_metric = f"均 {overall_shanten:.2f} 向听 (逐局加权净偏差 {avg_shanten_diff:+.2f})"
-            good_metric = f"{good_hands:.1f}% (综合预期超额 {avg_good_diff * 100:+.1f}%)"
-            bad_metric = f"{bad_hands:.1f}% (综合预期超额 {avg_bad_diff * 100:+.1f}%)"
-            dora_metric = f"均 {overall_dora:.2f} 张 (综合期望净偏差 {avg_dora_diff:+.2f})"
+            mode_label = f"三麻/四麻混合 ({count_3p}场三麻 / {count_4p}场四麻)"
+            bl_label = "三/四麻加权"
+        s_diff = -avg_shanten_diff
+        good_diff = avg_good_diff * 100
+        bad_diff = avg_bad_diff * 100
 
         lines = [
-            f"🀄【雀魂近期牌运诊断报告】",
-            f"👤 玩家：{nickname} | {mode_header} | 样本量：最近 {sample_games} 场 (共 {sample_rounds} 局)",
-            f"📊 综合牌运评分：{luck_score:.1f} / 100 【{tier_title}】",
+            f"🀄 {nickname}｜{mode_label}｜近 {sample_games} 场 {sample_rounds} 局",
             "",
-            f"📈 核心运势指标（对比{bl_label}数理基准）：",
-            f"• 起手向听：{s_metric}",
-            f"• 优质配牌(≤2向听)：{good_metric}",
-            f"• 恶劣配牌(≥4向听)：{bad_metric}",
-            f"• 首巡进张率：均 {overall_ukeire:.1f}% (首巡摸进有效牌概率)",
-            f"• 起手宝牌：{dora_metric}",
-            f"• 战绩表现：局和率 {total_wins:.1f}% | 局铳率 {total_deal_ins:.1f}%",
-            "",
-            "🎲 近期各场走势：",
+            f"配牌质量分  {quality_score:.1f} / 100",
+            f"起手向听    {overall_shanten:.2f}  （{bl_label}基准 {expected_baselines['avg_shanten']:.2f}，差 {s_diff:+.2f}）",
+            f"好牌率      {good_hands:.1f}% （基准 {expected_baselines['good_hands']:.1f}%，{good_diff:+.1f}pp）",
+            f"烂牌率      {bad_hands:.1f}% （基准 {expected_baselines['bad_hands']:.1f}%，{bad_diff:+.1f}pp）",
+            f"进张概率    {overall_ukeire:.1f}%",
+            f"宝牌/局     {overall_dora:.2f}  （基准 {expected_baselines['avg_dora']:.2f}，{avg_dora_diff:+.2f}）",
+            f"和率 / 铳率  {total_wins:.1f}% / {total_deal_ins:.1f}%",
         ]
+        if rounds_3p:
+            lines.append(f"起手北牌    {overall_north:.2f} 张（三麻基准 {BASELINES['3p']['avg_north']:.2f}，拔北前统计）")
+        lines.extend([
+            "",
+            "近期各场：",
+        ])
 
         for g in game_summaries:
-            g_is_3p = g.get("is_3p", False)
-            g_bl = BASELINES["3p"] if g_is_3p else BASELINES["4p"]
-            g_diff = g_bl["avg_shanten"] - g["avg_shanten"]
-            icon = "🌟" if g_diff > 0.30 else ("✨" if g_diff > 0.08 else ("⚖️" if g_diff >= -0.08 else ("🌧️" if g_diff >= -0.30 else "⚡")))
             score_str = f"{g['pt']:+d}pt" if g["pt"] != 0 else f"{g['score']:+d}"
             lines.append(
-                f"{g['game_num']}. {g['rank']}位({score_str}) | 【{g['mode_name']}】 | {g['rounds']}局 | 均向听 {g['avg_shanten']:.2f} {icon} | 和{g['wins']} 铳{g['deal_ins']}"
+                f"{g['game_num']}. {g['rank']}位({score_str}) {g['mode_name']} {g['rounds']}局｜向听 {g['avg_shanten']:.2f} 配牌分 {g['quality_score']:.1f}｜和{g['wins']} 铳{g['deal_ins']}"
             )
 
         lines.extend([
             "",
-            f"💡 牌仙诊断建议：",
-            f"{advice}",
+            "──────────────────────",
+            "配牌分只看起手向听，随机摸牌平均50分～",
+            "三麻北牌按拔北前统计，好坏都只是运气，不是实力判断哦",
+            "基准数据来自100万次随机模拟，场数少时波动很正常",
         ])
 
         return "\n".join(lines)

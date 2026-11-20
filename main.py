@@ -21,7 +21,7 @@ import json
 import asyncio
 from pathlib import Path
 
-@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.7.0")
+@register("astrbot_plugin_majsoul", "kterna", "雀魂多功能插件", "1.7.2")
 class MajsoulPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -194,7 +194,7 @@ class MajsoulPlugin(Star):
 - 雀魂牌谱 昵称 三人 10：查询玩家最近10条三麻对局记录
 
 【牌运诊断】
-- 雀魂牌运 [数量]：诊断近期对局起手向听、首巡进张率与牌运走势（绑定账号直接查全模式）
+- 雀魂牌运 [数量]：分析近期13张配牌的向听、进张、宝牌与配牌质量（绑定账号直接查全模式）
 - 雀魂牌运 三人 [数量]：筛选三麻对局进行牌运诊断
 - 雀魂牌运 昵称 <四人金|三人玉|金南等> [数量]：查询指定玩家与模式（非绑定账号需指定模式）
 
@@ -329,7 +329,7 @@ class MajsoulPlugin(Star):
 
     @filter.command("雀魂牌运")
     async def handle_luck(self, event: AstrMessageEvent):
-        """诊断玩家近期雀魂牌运状态（起手向听、进张率与运势分析，支持全段位与双轨拉取）"""
+        """分析玩家近期13张配牌质量，支持全段位与双轨拉取。"""
         try:
             user_id = str(event.message_obj.sender.user_id)
             args = re.sub(r'^雀魂牌运\s*', '', event.message_str.strip())
